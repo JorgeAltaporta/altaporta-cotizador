@@ -16,6 +16,14 @@ type Zona = {
 export default async function ZonasPage() {
   const supabase = await createClient()
 
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('puede_aprobar')
+    .eq('id', user!.id)
+    .single()
+  const puedeEditar = profile?.puede_aprobar || false
+
   const { data: zonas, error } = await supabase
     .from('zonas')
     .select('*')
@@ -65,9 +73,16 @@ export default async function ZonasPage() {
                 </div>
 
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-serif text-2xl text-stone-900 mb-1">
-                    {zona.nombre}
-                  </h3>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="font-serif text-2xl text-stone-900">
+                      {zona.nombre}
+                    </h3>
+                    {zona.estado === 'ARCHIVADO' && (
+                      <span className="text-xs px-2 py-0.5 bg-stone-200 text-stone-600 rounded">
+                        Archivado
+                      </span>
+                    )}
+                  </div>
                   {zona.descripcion && (
                     <p className="text-stone-600 text-sm">{zona.descripcion}</p>
                   )}
@@ -87,6 +102,15 @@ export default async function ZonasPage() {
                     <div className="text-sm text-emerald-700">Sin flete</div>
                   )}
                 </div>
+
+                {puedeEditar && (
+                  <Link
+                    href={`/catalogo/zonas/${zona.id}/editar`}
+                    className="text-sm bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-lg transition flex-shrink-0"
+                  >
+                    Editar
+                  </Link>
+                )}
               </div>
 
               {zona.locaciones && zona.locaciones.length > 0 && (
