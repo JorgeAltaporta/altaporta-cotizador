@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import NumberInput from '@/app/components/NumberInput'
 
 type Zona = { id: string; nombre: string }
 
@@ -103,17 +104,13 @@ export default function HoraExtraForm({
                   </td>
                   {rangos.map((rango, idx) => (
                     <td key={rango.id} className="py-2 px-1">
-                      <div className="relative">
+                     <div className="relative">
                         <span className="absolute left-2 top-1/2 -translate-y-1/2 text-stone-400 text-xs">
                           $
                         </span>
-                        <input
-                          type="number"
+                        <NumberInput
                           value={tarifas[zona.id]?.[idx] || 0}
-                          onChange={(e) =>
-                            actualizarTarifa(zona.id, idx, Number(e.target.value))
-                          }
-                          min={0}
+                          onChange={(v) => actualizarTarifa(zona.id, idx, v)}
                           className="w-full pl-5 pr-1 py-1.5 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-600"
                         />
                       </div>
