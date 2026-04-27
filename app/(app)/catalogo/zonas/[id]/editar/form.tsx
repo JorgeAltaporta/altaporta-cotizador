@@ -25,6 +25,7 @@ type Zona = {
   color: string | null
   locaciones: Locacion[]
   precios_flete: number[]
+  precios_hora_extra: number[]
   estado: string
 }
 
@@ -58,12 +59,21 @@ export default function EditarZonaForm({
   const [fletes, setFletes] = useState<number[]>(
     rangos.map((_, i) => zona.precios_flete?.[i] || 0)
   )
+  const [horaExtra, setHoraExtra] = useState<number[]>(
+    rangos.map((_, i) => zona.precios_hora_extra?.[i] || 0)
+  )
   const [confirmarArchivar, setConfirmarArchivar] = useState(false)
 
   function actualizarFlete(idx: number, valor: number) {
     const nuevos = [...fletes]
     nuevos[idx] = valor
     setFletes(nuevos)
+  }
+
+  function actualizarHoraExtra(idx: number, valor: number) {
+    const nuevos = [...horaExtra]
+    nuevos[idx] = valor
+    setHoraExtra(nuevos)
   }
 
   function agregarLocacion() {
@@ -96,6 +106,7 @@ export default function EditarZonaForm({
           estado: estadoAGuardar,
           locaciones,
           precios_flete: fletes,
+          precios_hora_extra: horaExtra,
         })
         .eq('id', zona.id)
 
@@ -237,7 +248,7 @@ export default function EditarZonaForm({
 
       {/* FLETES POR RANGO */}
       <section className="bg-white rounded-2xl border border-stone-200 p-6">
-        <h2 className="font-serif text-xl text-stone-900 mb-1">Precios de flete por rango de pax</h2>
+        <h2 className="font-serif text-xl text-stone-900 mb-1">🚚 Flete</h2>
         <p className="text-sm text-stone-500 mb-4">Costo por persona (multiplicado por número de invitados)</p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -249,6 +260,28 @@ export default function EditarZonaForm({
                 <NumberInput
                   value={fletes[idx] || 0}
                   onChange={(v) => actualizarFlete(idx, v)}
+                  className="w-full pl-7 pr-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* HORA EXTRA POR RANGO */}
+      <section className="bg-white rounded-2xl border border-stone-200 p-6">
+        <h2 className="font-serif text-xl text-stone-900 mb-1">⏱️ Hora extra</h2>
+        <p className="text-sm text-stone-500 mb-4">Costo total de una hora extra de banquete (no por persona)</p>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {rangos.map((rango, idx) => (
+            <div key={rango.id}>
+              <label className="block text-xs text-stone-600 mb-1">{rango.nombre} pax</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500">$</span>
+                <NumberInput
+                  value={horaExtra[idx] || 0}
+                  onChange={(v) => actualizarHoraExtra(idx, v)}
                   className="w-full pl-7 pr-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
                 />
               </div>
