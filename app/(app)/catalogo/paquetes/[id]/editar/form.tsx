@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import CategoriasEditor, { type Categoria } from './CategoriasEditor'
 import SlotsEditor, { type Slot } from './SlotsEditor'
+import PermisosEditor from './PermisosEditor'
 import NumberInput from '@/app/components/NumberInput'
 
 type Rango = {
