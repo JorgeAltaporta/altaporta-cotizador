@@ -17,6 +17,13 @@ export default async function NuevaZonaPage() {
     redirect('/catalogo/zonas')
   }
 
+  // Cargar IDs existentes para sugerir la siguiente letra libre
+  const { data: zonasExistentes } = await supabase
+    .from('zonas')
+    .select('id')
+
+  const idsTomados = (zonasExistentes || []).map((z) => z.id)
+
   return (
     <div className="p-12 max-w-2xl">
       <div className="mb-8">
@@ -31,11 +38,11 @@ export default async function NuevaZonaPage() {
         </div>
         <h1 className="font-serif text-4xl text-stone-900">Nueva zona</h1>
         <p className="text-stone-600 mt-2">
-          Llena los datos básicos. Después podrás agregar locaciones y precios de flete.
+          Llena los datos básicos. Después podrás agregar locaciones, fletes y hora extra.
         </p>
       </div>
 
-      <NuevaZonaForm />
+      <NuevaZonaForm idsTomados={idsTomados} />
     </div>
   )
 }
