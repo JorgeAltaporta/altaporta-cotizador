@@ -33,6 +33,11 @@ export default async function ZonasPage() {
     return <div className="p-12 text-rose-700">Error: {error.message}</div>
   }
 
+  const todas = (zonas as Zona[] | null) || []
+  const activas = todas.filter((z) => z.estado === 'ACTIVO')
+  const borradores = todas.filter((z) => z.estado === 'BORRADOR')
+  const archivadas = todas.filter((z) => z.estado === 'ARCHIVADO')
+
   return (
     <div className="p-12 max-w-6xl">
       <div className="mb-8">
@@ -61,101 +66,127 @@ export default async function ZonasPage() {
         )}
       </div>
 
-      <div className="space-y-4">
-        {(zonas as Zona[] | null)?.map((zona) => {
-          const fleteMin = zona.precios_flete?.length
-            ? Math.min(...zona.precios_flete.filter((p) => p > 0))
-            : 0
-          const fleteMax = zona.precios_flete?.length
-            ? Math.max(...zona.precios_flete)
-            : 0
+      <ZonasGrupo zonas={activas} puedeEditar={puedeEditar} />
 
-          return (
-            <div
-              key={zona.id}
-              className="bg-white rounded-2xl border border-stone-200 p-6"
-            >
-              <div className="flex items-start gap-6 mb-4">
-                <div
-                  className="w-16 h-16 rounded-xl flex items-center justify-center text-2xl text-white flex-shrink-0"
-                  style={{ backgroundColor: zona.color || '#A8A29E' }}
-                >
-                  {zona.id}
+      {borradores.length > 0 && (
+        <div className="mt-12">
+          <h2 className="font-serif text-xl text-stone-700 mb-4">
+            Borradores ({borradores.length})
+          </h2>
+          <ZonasGrupo zonas={borradores} puedeEditar={puedeEditar} />
+        </div>
+      )}
+
+      {archivadas.length > 0 && (
+        <div className="mt-12">
+          <h2 className="font-serif text-xl text-stone-500 mb-4">
+            Archivadas ({archivadas.length})
+          </h2>
+          <ZonasGrupo zonas={archivadas} puedeEditar={puedeEditar} archivadas />
+        </div>
+      )}
+
+      {todas.length === 0 && (
+        <div className="text-center py-12 text-stone-500">
+          No hay zonas registradas.
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ZonasGrupo({
+  zonas,
+  puedeEditar,
+  archivadas,
+}: {
+  zonas: Zona[]
+  puedeEditar: boolean
+  archivadas?: boolean
+}) {
+  return (
+    <div className="space-y-4">
+      {zonas.map((zona) => {
+        const fleteMin = zona.precios_flete?.length
+          ? Math.min(...zona.precios_flete.filter((p) => p > 0))
+          : 0
+        const fleteMax = zona.precios_flete?.length
+          ? Math.max(...zona.precios_flete)
+          : 0
+
+        return (
+          <div
+            key={zona.id}
+            className={`rounded-2xl border p-6 ${
+              archivadas
+                ? 'bg-stone-50 border-stone-200 opacity-70'
+                : 'bg-white border-stone-200'
+            }`}
+          >
+            <div className="flex items-start gap-6 mb-4">
+              <div
+                className="w-16 h-16 rounded-xl flex items-center justify-center text-2xl text-white flex-shrink-0"
+                style={{ backgroundColor: zona.color || '#A8A29E' }}
+              >
+                {zona.id}
+              </div>
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="font-serif text-2xl text-stone-900">
+                    {zona.nombre}
+                  </h3>
                 </div>
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-serif text-2xl text-stone-900">
-                      {zona.nombre}
-                    </h3>
-                    {zona.estado === 'BORRADOR' && (
-                      <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded">
-                        Borrador
-                      </span>
-                    )}
-                    {zona.estado === 'ARCHIVADO' && (
-                      <span className="text-xs px-2 py-0.5 bg-stone-200 text-stone-600 rounded">
-                        Archivado
-                      </span>
-                    )}
-                  </div>
-                  {zona.descripcion && (
-                    <p className="text-stone-600 text-sm">{zona.descripcion}</p>
-                  )}
-                </div>
-
-                <div className="text-right flex-shrink-0">
-                  {fleteMax > 0 ? (
-                    <>
-                      <div className="text-xs text-stone-500 mb-0.5">Flete</div>
-                      <div className="font-serif text-xl text-stone-900">
-                        ${fleteMin}
-                        {fleteMin !== fleteMax && ` – $${fleteMax}`}
-                      </div>
-                      <div className="text-xs text-stone-500">por pax</div>
-                    </>
-                  ) : (
-                    <div className="text-sm text-emerald-700">Sin flete</div>
-                  )}
-                </div>
-
-                {puedeEditar && (
-                  <Link
-                    href={`/catalogo/zonas/${zona.id}/editar`}
-                    className="text-sm bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-lg transition flex-shrink-0"
-                  >
-                    Editar
-                  </Link>
+                {zona.descripcion && (
+                  <p className="text-stone-600 text-sm">{zona.descripcion}</p>
                 )}
               </div>
 
-              {zona.locaciones && zona.locaciones.length > 0 && (
-                <div className="border-t border-stone-100 pt-4">
-                  <div className="text-xs tracking-widest text-stone-500 uppercase mb-2">
-                    Locaciones ({zona.locaciones.length})
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {zona.locaciones.map((loc) => (
-                      <span
-                        key={loc.id}
-                        className="text-sm px-3 py-1 bg-stone-100 text-stone-700 rounded-full"
-                      >
-                        {loc.nombre}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+              <div className="text-right flex-shrink-0">
+                {fleteMax > 0 ? (
+                  <>
+                    <div className="text-xs text-stone-500 mb-0.5">Flete</div>
+                    <div className="font-serif text-xl text-stone-900">
+                      ${fleteMin}
+                      {fleteMin !== fleteMax && ` – $${fleteMax}`}
+                    </div>
+                    <div className="text-xs text-stone-500">por pax</div>
+                  </>
+                ) : (
+                  <div className="text-sm text-emerald-700">Sin flete</div>
+                )}
+              </div>
+
+              {puedeEditar && (
+                <Link
+                  href={`/catalogo/zonas/${zona.id}/editar`}
+                  className="text-sm bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-lg transition flex-shrink-0"
+                >
+                  Editar
+                </Link>
               )}
             </div>
-          )
-        })}
 
-        {zonas?.length === 0 && (
-          <div className="text-center py-12 text-stone-500">
-            No hay zonas registradas.
+            {zona.locaciones && zona.locaciones.length > 0 && (
+              <div className="border-t border-stone-100 pt-4">
+                <div className="text-xs tracking-widest text-stone-500 uppercase mb-2">
+                  Locaciones ({zona.locaciones.length})
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {zona.locaciones.map((loc) => (
+                    <span
+                      key={loc.id}
+                      className="text-sm px-3 py-1 bg-stone-100 text-stone-700 rounded-full"
+                    >
+                      {loc.nombre}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        )
+      })}
     </div>
   )
 }
