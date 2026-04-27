@@ -424,11 +424,14 @@ function AdicionalItem({
           </label>
 
           {usarPreciosZona && (
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-2">
+            <div className="space-y-2 mt-2">
               {zonas.map((z) => (
-                <div key={z.id}>
-                  <label className="block text-xs text-stone-600 mb-1">Zona {z.id}</label>
-                  <div className="relative">
+                <div key={z.id} className="flex items-center gap-3">
+                  <label className="w-48 text-xs text-stone-700 flex-shrink-0">
+                    <span className="font-medium">{z.id}</span>
+                    <span className="text-stone-500"> · {z.nombre}</span>
+                  </label>
+                  <div className="relative flex-1">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 text-xs">$</span>
                     <NumberInput
                       value={preciosPorZona[z.id] || 0}
