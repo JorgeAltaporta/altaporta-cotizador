@@ -75,7 +75,7 @@ export default function NuevaZonaForm() {
           <input
             type="text"
             value={id}
-            onChange={(e) => setId(e.target.value.toUpperCase())}
+onChange={(e) => setId(e.target.value.toUpperCase().replace(/\s+/g, '-').replace(/[^A-Z0-9_-]/g, ''))}
             placeholder="Ej: F  o  MERIDA-ORIENTE"
             className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600 font-mono text-sm"
           />
