@@ -16,6 +16,14 @@ type Paquete = {
 export default async function PaquetesPage() {
   const supabase = await createClient()
 
+  const { data: { user } } = await supabase.auth.getUser()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('puede_aprobar')
+    .eq('id', user!.id)
+    .single()
+  const puedeEditar = profile?.puede_aprobar || false
+
   const { data: paquetes, error } = await supabase
     .from('paquetes')
     .select('*')
@@ -73,6 +81,11 @@ export default async function PaquetesPage() {
                       Personalizado
                     </span>
                   )}
+                  {paquete.estado === 'ARCHIVADO' && (
+                    <span className="text-xs px-2 py-0.5 bg-stone-200 text-stone-600 rounded">
+                      Archivado
+                    </span>
+                  )}
                 </div>
                 {paquete.descripcion && (
                   <p className="text-stone-600 text-sm mb-2">
@@ -99,6 +112,15 @@ export default async function PaquetesPage() {
                   <div className="text-sm text-stone-400">Sin precio</div>
                 )}
               </div>
+
+              {puedeEditar && (
+                <Link
+                  href={`/catalogo/paquetes/${paquete.id}/editar`}
+                  className="text-sm bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-lg transition flex-shrink-0"
+                >
+                  Editar
+                </Link>
+              )}
             </div>
           )
         })}
