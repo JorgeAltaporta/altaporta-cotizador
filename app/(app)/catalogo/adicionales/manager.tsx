@@ -97,7 +97,6 @@ export default function AdicionalesManager({
     return true
   }
 
-  // Agrupar
   const activos = adicionales.filter((a) => a.estado === 'ACTIVO' && !a.usa_tarifa_por_rango)
   const archivados = adicionales.filter((a) => a.estado === 'ARCHIVADO')
 
@@ -122,7 +121,6 @@ export default function AdicionalesManager({
         </div>
       )}
 
-      {/* Crear nuevo */}
       {puedeEditar && (
         <section className="bg-white rounded-2xl border border-stone-200 p-6">
           {!creando ? (
@@ -142,7 +140,6 @@ export default function AdicionalesManager({
         </section>
       )}
 
-      {/* Adicionales por categoría */}
       <div className="space-y-8">
         {adicionalesPorCategoria.map((grupo) => (
           <div key={grupo.id}>
@@ -216,6 +213,303 @@ export default function AdicionalesManager({
   )
 }
 
-// ─────────────────────────────────────────────────────────────────────────
-// Formulario para crear adicional nuevo
-// ────────────────
+function FormularioCrear({
+  categorias,
+  onCrear,
+  onCancelar,
+}: {
+  categorias: Categoria[]
+  onCrear: (datos: { nombre: string; categoria_id: string; unidad: string; precio: number }) => Promise<boolean>
+  onCancelar: () => void
+}) {
+  const [nombre, setNombre] = useState('')
+  const [categoriaId, setCategoriaId] = useState(categorias[0]?.id || '')
+  const [unidad, setUnidad] = useState('pax')
+  const [precio, setPrecio] = useState(0)
+  const [guardando, setGuardando] = useState(false)
+
+  async function submit() {
+    if (!nombre.trim()) return
+    setGuardando(true)
+    const ok = await onCrear({ nombre: nombre.trim(), categoria_id: categoriaId, unidad, precio })
+    setGuardando(false)
+    if (ok) {
+      setNombre('')
+      setUnidad('pax')
+      setPrecio(0)
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <h3 className="font-serif text-lg text-stone-900">Nuevo adicional</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <input
+          type="text"
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          placeholder="Nombre"
+          className="px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
+        />
+        <select
+          value={categoriaId}
+          onChange={(e) => setCategoriaId(e.target.value)}
+          className="px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
+        >
+          {categorias.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.icono} {c.nombre}
+            </option>
+          ))}
+        </select>
+        <input
+          type="text"
+          value={unidad}
+          onChange={(e) => setUnidad(e.target.value)}
+          placeholder="Unidad (pax, c/u, mesa, etc.)"
+          className="px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
+        />
+        <div className="relative">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500">$</span>
+          <input
+            type="number"
+            value={precio}
+            onChange={(e) => setPrecio(Number(e.target.value))}
+            min={0}
+            placeholder="Precio"
+            className="w-full pl-7 pr-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
+          />
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={submit}
+          disabled={guardando || !nombre.trim()}
+          className="bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white px-4 py-2 rounded-lg"
+        >
+          {guardando ? 'Guardando...' : 'Crear'}
+        </button>
+        <button
+          onClick={onCancelar}
+          className="border border-stone-300 hover:bg-stone-50 px-4 py-2 rounded-lg"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function AdicionalItem({
+  adicional,
+  categorias,
+  zonas,
+  puedeEditar,
+  onActualizar,
+  archivado,
+}: {
+  adicional: Adicional
+  categorias: Categoria[]
+  zonas: Zona[]
+  puedeEditar: boolean
+  onActualizar: (id: string, cambios: Partial<Adicional>) => Promise<boolean>
+  archivado?: boolean
+}) {
+  const [editando, setEditando] = useState(false)
+  const [nombre, setNombre] = useState(adicional.nombre)
+  const [categoriaId, setCategoriaId] = useState(adicional.categoria_id || '')
+  const [unidad, setUnidad] = useState(adicional.unidad || '')
+  const [precio, setPrecio] = useState(adicional.precio)
+  const [notas, setNotas] = useState(adicional.notas || '')
+  const [preciosPorZona, setPreciosPorZona] = useState<Record<string, number>>(
+    adicional.precios_por_zona || {}
+  )
+  const [usarPreciosZona, setUsarPreciosZona] = useState(
+    Object.keys(adicional.precios_por_zona || {}).length > 0
+  )
+
+  async function guardar() {
+    const cambios: Partial<Adicional> = {
+      nombre,
+      categoria_id: categoriaId || null,
+      unidad: unidad || null,
+      precio,
+      notas: notas || null,
+      precios_por_zona: usarPreciosZona ? preciosPorZona : {},
+    }
+    const ok = await onActualizar(adicional.id, cambios)
+    if (ok) setEditando(false)
+  }
+
+  async function archivarRestaurar() {
+    await onActualizar(adicional.id, { estado: archivado ? 'ACTIVO' : 'ARCHIVADO' })
+  }
+
+  if (editando) {
+    return (
+      <div className="bg-white rounded-xl border border-amber-300 p-4 space-y-3 col-span-full">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-stone-600 mb-1">Nombre</label>
+            <input
+              type="text"
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-stone-600 mb-1">Categoría</label>
+            <select
+              value={categoriaId}
+              onChange={(e) => setCategoriaId(e.target.value)}
+              className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm"
+            >
+              <option value="">Sin categoría</option>
+              {categorias.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.icono} {c.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-stone-600 mb-1">Unidad</label>
+            <input
+              type="text"
+              value={unidad}
+              onChange={(e) => setUnidad(e.target.value)}
+              className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-stone-600 mb-1">Precio base</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500">$</span>
+              <input
+                type="number"
+                value={precio}
+                onChange={(e) => setPrecio(Number(e.target.value))}
+                min={0}
+                className="w-full pl-7 pr-3 py-2 border border-stone-300 rounded-lg text-sm"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs text-stone-600 mb-1">Notas</label>
+          <input
+            type="text"
+            value={notas}
+            onChange={(e) => setNotas(e.target.value)}
+            placeholder="Ej: Desde $42,000 / No incluye Licor 43"
+            className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm"
+          />
+        </div>
+
+        <div className="border-t border-stone-100 pt-3">
+          <label className="flex items-center gap-2 text-sm text-stone-700 mb-2">
+            <input
+              type="checkbox"
+              checked={usarPreciosZona}
+              onChange={(e) => setUsarPreciosZona(e.target.checked)}
+              className="rounded"
+            />
+            <span>Usar precios distintos por zona (sobreescribe el precio base)</span>
+          </label>
+
+          {usarPreciosZona && (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mt-2">
+              {zonas.map((z) => (
+                <div key={z.id}>
+                  <label className="block text-xs text-stone-600 mb-1">Zona {z.id}</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 text-xs">$</span>
+                    <input
+                      type="number"
+                      value={preciosPorZona[z.id] || 0}
+                      onChange={(e) =>
+                        setPreciosPorZona({
+                          ...preciosPorZona,
+                          [z.id]: Number(e.target.value),
+                        })
+                      }
+                      min={0}
+                      className="w-full pl-6 pr-2 py-1.5 border border-stone-300 rounded text-sm"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2 justify-end">
+          <button
+            onClick={() => setEditando(false)}
+            className="border border-stone-300 hover:bg-stone-50 px-4 py-2 rounded-lg text-sm"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={guardar}
+            className="bg-amber-700 hover:bg-amber-800 text-white px-4 py-2 rounded-lg text-sm"
+          >
+            Guardar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const tienePreciosZona = Object.keys(adicional.precios_por_zona || {}).length > 0
+
+  return (
+    <div className={`rounded-xl border p-4 ${
+      archivado
+        ? 'bg-stone-50 border-stone-200 opacity-60'
+        : 'bg-white border-stone-200'
+    }`}>
+      <div className="flex items-start justify-between gap-3 mb-1">
+        <div className="font-medium text-stone-900">{adicional.nombre}</div>
+        <div className="text-right flex-shrink-0">
+          {tienePreciosZona ? (
+            <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded">
+              precio por zona
+            </span>
+          ) : (
+            <>
+              <div className="font-medium text-stone-900">
+                ${adicional.precio.toLocaleString('es-MX')}
+              </div>
+              {adicional.unidad && (
+                <div className="text-xs text-stone-500">/ {adicional.unidad}</div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+      {adicional.notas && (
+        <p className="text-xs text-stone-500 mt-1">{adicional.notas}</p>
+      )}
+
+      {puedeEditar && (
+        <div className="flex gap-1 mt-3 pt-3 border-t border-stone-100">
+          <button
+            onClick={() => setEditando(true)}
+            className="text-xs text-stone-600 hover:text-stone-900 px-2 py-1"
+          >
+            Editar
+          </button>
+          <button
+            onClick={archivarRestaurar}
+            className="text-xs text-stone-600 hover:text-stone-900 px-2 py-1"
+          >
+            {archivado ? 'Restaurar' : 'Archivar'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
