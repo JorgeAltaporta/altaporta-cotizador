@@ -11,7 +11,6 @@ export default async function EditarPaquetePage({
   const { id } = await params
   const supabase = await createClient()
 
-  // Verificar permiso para editar
   const { data: { user } } = await supabase.auth.getUser()
   const { data: profile } = await supabase
     .from('profiles')
@@ -23,22 +22,19 @@ export default async function EditarPaquetePage({
     redirect('/catalogo/paquetes')
   }
 
-  // Cargar el paquete
-  const { data: paquete, error } = await supabase
-    .from('paquetes')
-    .select('*')
-    .eq('id', id)
-    .single()
+  const [paqueteResp, rangosResp, proteinasResp, nivelesResp, zonasResp, adicionalesResp, categoriasResp] = await Promise.all([
+    supabase.from('paquetes').select('*').eq('id', id).single(),
+    supabase.from('rangos').select('*').order('orden'),
+    supabase.from('proteinas').select('id, nombre, nivel_id').eq('estado', 'ACTIVO').order('nombre'),
+    supabase.from('niveles_proteina').select('*').order('orden'),
+    supabase.from('zonas').select('id, nombre, color').eq('estado', 'ACTIVO').order('id'),
+    supabase.from('adicionales').select('id, nombre, categoria_id').eq('estado', 'ACTIVO').order('nombre'),
+    supabase.from('categorias_adicionales').select('*').order('orden'),
+  ])
 
-  if (error || !paquete) {
+  if (paqueteResp.error || !paqueteResp.data) {
     notFound()
   }
-
-  // Cargar rangos para mostrar precios
-  const { data: rangos } = await supabase
-    .from('rangos')
-    .select('*')
-    .order('orden')
 
   return (
     <div className="p-12 max-w-4xl">
@@ -53,11 +49,19 @@ export default async function EditarPaquetePage({
           Editar paquete
         </div>
         <h1 className="font-serif text-4xl text-stone-900">
-          {paquete.nombre}
+          {paqueteResp.data.nombre}
         </h1>
       </div>
 
-      <EditarPaqueteForm paquete={paquete} rangos={rangos || []} />
+      <EditarPaqueteForm
+        paquete={paqueteResp.data}
+        rangos={rangosResp.data || []}
+        proteinas={proteinasResp.data || []}
+        niveles={nivelesResp.data || []}
+        zonas={zonasResp.data || []}
+        adicionales={adicionalesResp.data || []}
+        categorias={categoriasResp.data || []}
+      />
     </div>
   )
 }
