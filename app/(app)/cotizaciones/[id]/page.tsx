@@ -8,6 +8,7 @@ type Evento = {
   fecha?: string
   zona_id?: string
   locacion_id?: string | null
+  locacion_texto?: string | null
   pax?: number
   paquete_id?: string
   precio_por_pax?: number
@@ -20,10 +21,10 @@ type Cotizacion = {
   id: string
   folio: string | null
   cliente_nombre: string
-  cliente_email: string | null
-  cliente_telefono: string | null
   estado: string
   ejecutivo_id: string | null
+  wp_id: string | null
+  comision_override: number | null
   eventos: Evento[] | null
   notas_cliente: string | null
   notas_internas: string | null
@@ -59,20 +60,23 @@ export default async function CotizacionDetallePage({
   const c = cotizacion as Cotizacion
 
   // Cargar info adicional
-  const [paquetesResp, zonasResp, ejecutivoResp] = await Promise.all([
+  const [paquetesResp, zonasResp, ejecutivoResp, wpResp] = await Promise.all([
     supabase.from('paquetes').select('id, nombre'),
-    supabase.from('zonas').select('id, nombre, locaciones'),
+    supabase.from('zonas').select('id, nombre'),
     c.ejecutivo_id
       ? supabase.from('profiles').select('nombre').eq('id', c.ejecutivo_id).single()
+      : Promise.resolve({ data: null }),
+    c.wp_id
+      ? supabase.from('wedding_planners').select('nombre, comision_default').eq('id', c.wp_id).single()
       : Promise.resolve({ data: null }),
   ])
 
   const paquetesMap = new Map((paquetesResp.data || []).map((p) => [p.id, p.nombre]))
-  const zonasMap = new Map(
-    (zonasResp.data || []).map((z) => [z.id, { nombre: z.nombre, locaciones: z.locaciones }])
-  )
+  const zonasMap = new Map((zonasResp.data || []).map((z) => [z.id, z.nombre]))
 
   const totalCotizacion = (c.eventos || []).reduce((sum, e) => sum + (e.total || 0), 0)
+  const comisionPct = c.comision_override ?? wpResp.data?.comision_default ?? 0
+  const comisionMonto = totalCotizacion * (comisionPct / 100)
 
   return (
     <div className="p-12 max-w-4xl">
@@ -102,11 +106,14 @@ export default async function CotizacionDetallePage({
           <h1 className="font-serif text-4xl text-stone-900">
             {c.cliente_nombre}
           </h1>
-          {ejecutivoResp.data && (
-            <p className="text-sm text-stone-500 mt-1">
-              Ejecutivo: {ejecutivoResp.data.nombre}
-            </p>
-          )}
+          <div className="flex gap-4 text-sm text-stone-500 mt-2">
+            {ejecutivoResp.data && (
+              <span>Ejecutivo: <strong className="text-stone-700">{ejecutivoResp.data.nombre}</strong></span>
+            )}
+            {wpResp.data && (
+              <span>WP: <strong className="text-stone-700">{wpResp.data.nombre}</strong></span>
+            )}
+          </div>
         </div>
 
         <div className="text-right">
@@ -114,32 +121,17 @@ export default async function CotizacionDetallePage({
           <div className="font-serif text-3xl text-stone-900">
             ${totalCotizacion.toLocaleString('es-MX')}
           </div>
+          {comisionPct > 0 && (
+            <div className="text-xs text-stone-500 mt-1">
+              Comisión {comisionPct}%: ${comisionMonto.toLocaleString('es-MX')}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* CLIENTE */}
-      <section className="bg-white rounded-2xl border border-stone-200 p-6 mb-6">
-        <h2 className="font-serif text-xl text-stone-900 mb-4">Cliente</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-          <div>
-            <div className="text-xs text-stone-500 mb-1">Nombre</div>
-            <div className="text-stone-900">{c.cliente_nombre}</div>
-          </div>
-          <div>
-            <div className="text-xs text-stone-500 mb-1">Email</div>
-            <div className="text-stone-900">{c.cliente_email || '—'}</div>
-          </div>
-          <div>
-            <div className="text-xs text-stone-500 mb-1">Teléfono</div>
-            <div className="text-stone-900">{c.cliente_telefono || '—'}</div>
-          </div>
-        </div>
-      </section>
-
       {/* EVENTOS */}
       {(c.eventos || []).map((evento, idx) => {
-        const zona = evento.zona_id ? zonasMap.get(evento.zona_id) : null
-        const locacion = zona?.locaciones?.find((l: { id: string; nombre: string }) => l.id === evento.locacion_id)
+        const zonaNombre = evento.zona_id ? zonasMap.get(evento.zona_id) : null
         const paqueteNombre = evento.paquete_id ? paquetesMap.get(evento.paquete_id) : null
 
         return (
@@ -173,18 +165,23 @@ export default async function CotizacionDetallePage({
                 </div>
               </div>
               <div>
-                <div className="text-xs text-stone-500 mb-1">Zona</div>
-                <div className="text-stone-900">
-                  {zona ? `${evento.zona_id} · ${zona.nombre}` : '—'}
-                </div>
-              </div>
-              <div>
                 <div className="text-xs text-stone-500 mb-1">Locación</div>
-                <div className="text-stone-900">{locacion?.nombre || '—'}</div>
+                <div className="text-stone-900">
+                  {evento.locacion_texto || '—'}
+                </div>
+                {zonaNombre && (
+                  <div className="text-xs text-stone-500">
+                    Zona {evento.zona_id} · {zonaNombre}
+                  </div>
+                )}
               </div>
               <div>
                 <div className="text-xs text-stone-500 mb-1">Pax</div>
                 <div className="text-stone-900">{evento.pax || 0}</div>
+              </div>
+              <div>
+                <div className="text-xs text-stone-500 mb-1">Paquete</div>
+                <div className="text-stone-900">{paqueteNombre || '—'}</div>
               </div>
             </div>
 
