@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import NumberInput from '@/app/components/NumberInput'
 
 type Adicional = {
   id: string
@@ -271,11 +272,9 @@ function FormularioCrear({
         />
         <div className="relative">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500">$</span>
-          <input
-            type="number"
+          <NumberInput
             value={precio}
-            onChange={(e) => setPrecio(Number(e.target.value))}
-            min={0}
+            onChange={setPrecio}
             placeholder="Precio"
             className="w-full pl-7 pr-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
           />
@@ -384,13 +383,11 @@ function AdicionalItem({
           </div>
           <div>
             <label className="block text-xs text-stone-600 mb-1">Precio base</label>
-            <div className="relative">
+           <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500">$</span>
-              <input
-                type="number"
+              <NumberInput
                 value={precio}
-                onChange={(e) => setPrecio(Number(e.target.value))}
-                min={0}
+                onChange={setPrecio}
                 className="w-full pl-7 pr-3 py-2 border border-stone-300 rounded-lg text-sm"
               />
             </div>
@@ -424,18 +421,16 @@ function AdicionalItem({
               {zonas.map((z) => (
                 <div key={z.id}>
                   <label className="block text-xs text-stone-600 mb-1">Zona {z.id}</label>
-                  <div className="relative">
+                 <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 text-xs">$</span>
-                    <input
-                      type="number"
+                    <NumberInput
                       value={preciosPorZona[z.id] || 0}
-                      onChange={(e) =>
+                      onChange={(v) =>
                         setPreciosPorZona({
                           ...preciosPorZona,
-                          [z.id]: Number(e.target.value),
+                          [z.id]: v,
                         })
                       }
-                      min={0}
                       className="w-full pl-6 pr-2 py-1.5 border border-stone-300 rounded text-sm"
                     />
                   </div>
