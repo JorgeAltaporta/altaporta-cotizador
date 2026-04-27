@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 
 type Rango = {
@@ -24,11 +25,11 @@ type Paquete = {
 }
 
 const COLORES_SUGERIDOS = [
-  '#F4A78F', // Premium
-  '#FDE68A', // Estándar
-  '#BBF7D0', // Básico
-  '#BFDBFE', // Coctel
-  '#E7E5E4', // Personalizado
+  '#F4A78F',
+  '#FDE68A',
+  '#BBF7D0',
+  '#BFDBFE',
+  '#E7E5E4',
   '#FECACA',
   '#DDD6FE',
   '#FED7AA',
@@ -45,7 +46,6 @@ export default function EditarPaqueteForm({
   const [isPending, startTransition] = useTransition()
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
 
-  // Estado del formulario
   const [nombre, setNombre] = useState(paquete.nombre)
   const [descripcion, setDescripcion] = useState(paquete.descripcion || '')
   const [color, setColor] = useState(paquete.color || '#E7E5E4')
@@ -93,7 +93,6 @@ export default function EditarPaqueteForm({
 
   return (
     <div className="space-y-6">
-      {/* Información general */}
       <section className="bg-white rounded-2xl border border-stone-200 p-6">
         <h2 className="font-serif text-xl text-stone-900 mb-4">Información general</h2>
 
@@ -196,7 +195,6 @@ export default function EditarPaqueteForm({
         </div>
       </section>
 
-      {/* Precios por rango */}
       <section className="bg-white rounded-2xl border border-stone-200 p-6">
         <h2 className="font-serif text-xl text-stone-900 mb-1">Precios por rango de pax</h2>
         <p className="text-sm text-stone-500 mb-4">Costo por persona</p>
@@ -220,7 +218,6 @@ export default function EditarPaqueteForm({
         </div>
       </section>
 
-      {/* Botones */}
       <div className="flex items-center justify-between">
         <Link href="/catalogo/paquetes" className="text-sm text-stone-600 hover:text-stone-900">
           Cancelar
@@ -234,7 +231,6 @@ export default function EditarPaqueteForm({
         </button>
       </div>
 
-      {/* Mensaje de resultado */}
       {mensaje && (
         <div
           className={`p-3 rounded-lg text-sm ${
@@ -247,13 +243,5 @@ export default function EditarPaqueteForm({
         </div>
       )}
     </div>
-  )
-}
-
-function Link({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) {
-  return (
-    <a href={href} className={className}>
-      {children}
-    </a>
   )
 }
