@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import ArchivadosToggle from './ArchivadosToggle'
 
 type Paquete = {
   id: string
@@ -33,6 +34,11 @@ export default async function PaquetesPage() {
     return <div className="p-12 text-rose-700">Error: {error.message}</div>
   }
 
+  const todos = (paquetes as Paquete[] | null) || []
+  const activos = todos.filter((p) => p.estado === 'ACTIVO')
+  const borradores = todos.filter((p) => p.estado === 'BORRADOR')
+  const archivados = todos.filter((p) => p.estado === 'ARCHIVADO')
+
   return (
     <div className="p-12 max-w-6xl">
       <div className="mb-8">
@@ -61,92 +67,115 @@ export default async function PaquetesPage() {
         )}
       </div>
 
-      <div className="space-y-4">
-        {(paquetes as Paquete[] | null)?.map((paquete) => {
-          const precioMin = paquete.precios?.length
-            ? Math.min(...paquete.precios.filter((p) => p > 0))
-            : 0
-          const precioMax = paquete.precios?.length
-            ? Math.max(...paquete.precios)
-            : 0
+      <PaquetesGrupo paquetes={activos} puedeEditar={puedeEditar} />
 
-          return (
+      {borradores.length > 0 && (
+        <div className="mt-12">
+          <h2 className="font-serif text-xl text-stone-700 mb-4">
+            Borradores ({borradores.length})
+          </h2>
+          <PaquetesGrupo paquetes={borradores} puedeEditar={puedeEditar} />
+        </div>
+      )}
+
+      {archivados.length > 0 && (
+        <ArchivadosToggle count={archivados.length}>
+          <PaquetesGrupo paquetes={archivados} puedeEditar={puedeEditar} archivados />
+        </ArchivadosToggle>
+      )}
+
+      {todos.length === 0 && (
+        <div className="text-center py-12 text-stone-500">
+          No hay paquetes registrados.
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PaquetesGrupo({
+  paquetes,
+  puedeEditar,
+  archivados,
+}: {
+  paquetes: Paquete[]
+  puedeEditar: boolean
+  archivados?: boolean
+}) {
+  return (
+    <div className="space-y-4">
+      {paquetes.map((paquete) => {
+        const precioMin = paquete.precios?.length
+          ? Math.min(...paquete.precios.filter((p) => p > 0))
+          : 0
+        const precioMax = paquete.precios?.length
+          ? Math.max(...paquete.precios)
+          : 0
+
+        return (
+          <div
+            key={paquete.id}
+            className={`rounded-2xl border p-6 flex items-center gap-6 ${
+              archivados
+                ? 'bg-stone-50 border-stone-200 opacity-70'
+                : 'bg-white border-stone-200'
+            }`}
+          >
             <div
-              key={paquete.id}
-              className="bg-white rounded-2xl border border-stone-200 p-6 flex items-center gap-6"
+              className="w-16 h-16 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
+              style={{ backgroundColor: paquete.color || '#E7E5E4' }}
             >
-              <div
-                className="w-16 h-16 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
-                style={{ backgroundColor: paquete.color || '#E7E5E4' }}
-              >
-                📦
-              </div>
+              📦
+            </div>
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-serif text-2xl text-stone-900">
-                    {paquete.nombre}
-                  </h3>
-                  {paquete.es_personalizado && (
-                    <span className="text-xs px-2 py-0.5 bg-stone-100 text-stone-600 rounded">
-                      Personalizado
-                    </span>
-                  )}
-                  {paquete.estado === 'BORRADOR' && (
-                    <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded">
-                      Borrador
-                    </span>
-                  )}
-                  {paquete.estado === 'ARCHIVADO' && (
-                    <span className="text-xs px-2 py-0.5 bg-stone-200 text-stone-600 rounded">
-                      Archivado
-                    </span>
-                  )}
-                </div>
-                {paquete.descripcion && (
-                  <p className="text-stone-600 text-sm mb-2">
-                    {paquete.descripcion}
-                  </p>
-                )}
-                <div className="flex gap-4 text-xs text-stone-500">
-                  <span>⏱️ {paquete.horas_servicio} hrs</span>
-                  <span>👥 desde {paquete.base_min_pax} pax</span>
-                </div>
-              </div>
-
-              <div className="text-right flex-shrink-0">
-                {precioMax > 0 ? (
-                  <>
-                    <div className="font-serif text-2xl text-stone-900">
-                      ${precioMin.toLocaleString('es-MX')}
-                    </div>
-                    <div className="text-xs text-stone-500">
-                      hasta ${precioMax.toLocaleString('es-MX')} / pax
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-sm text-stone-400">Sin precio</div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-serif text-2xl text-stone-900">
+                  {paquete.nombre}
+                </h3>
+                {paquete.es_personalizado && (
+                  <span className="text-xs px-2 py-0.5 bg-stone-100 text-stone-600 rounded">
+                    Personalizado
+                  </span>
                 )}
               </div>
+              {paquete.descripcion && (
+                <p className="text-stone-600 text-sm mb-2">
+                  {paquete.descripcion}
+                </p>
+              )}
+              <div className="flex gap-4 text-xs text-stone-500">
+                <span>⏱️ {paquete.horas_servicio} hrs</span>
+                <span>👥 desde {paquete.base_min_pax} pax</span>
+              </div>
+            </div>
 
-              {puedeEditar && (
-                <Link
-                  href={`/catalogo/paquetes/${paquete.id}/editar`}
-                  className="text-sm bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-lg transition flex-shrink-0"
-                >
-                  Editar
-                </Link>
+            <div className="text-right flex-shrink-0">
+              {precioMax > 0 ? (
+                <>
+                  <div className="font-serif text-2xl text-stone-900">
+                    ${precioMin.toLocaleString('es-MX')}
+                  </div>
+                  <div className="text-xs text-stone-500">
+                    hasta ${precioMax.toLocaleString('es-MX')} / pax
+                  </div>
+                </>
+              ) : (
+                <div className="text-sm text-stone-400">Sin precio</div>
               )}
             </div>
-          )
-        })}
 
-        {paquetes?.length === 0 && (
-          <div className="text-center py-12 text-stone-500">
-            No hay paquetes registrados.
+            {puedeEditar && (
+              <Link
+                href={`/catalogo/paquetes/${paquete.id}/editar`}
+                className="text-sm bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-lg transition flex-shrink-0"
+              >
+                Editar
+              </Link>
+            )}
           </div>
-        )}
-      </div>
+        )
+      })}
     </div>
   )
 }
