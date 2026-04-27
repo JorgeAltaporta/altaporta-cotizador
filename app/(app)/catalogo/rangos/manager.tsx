@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import NumberInput from '@/app/components/NumberInput'
 
@@ -30,11 +31,9 @@ export default function RangosManager({
   }
 
   function validar(): string | null {
-    // Validar que cada rango tenga nombre
     for (const r of rangos) {
       if (!r.nombre.trim()) return `El rango "${r.id}" no tiene nombre`
     }
-    // Validar continuidad: max_pax de uno debe ser menor que min_pax del siguiente
     for (let i = 0; i < rangos.length - 1; i++) {
       const actual = rangos[i]
       const siguiente = rangos[i + 1]
@@ -59,7 +58,6 @@ export default function RangosManager({
     startTransition(async () => {
       const supabase = createClient()
 
-      // Actualizar uno por uno
       for (const r of rangos) {
         const { error } = await supabase
           .from('rangos')
