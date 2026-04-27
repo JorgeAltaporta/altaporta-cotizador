@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import CategoriasEditor, { type Categoria } from './CategoriasEditor'
 import SlotsEditor, { type Slot } from './SlotsEditor'
-import PermisosEditor from './PermisosEditor'
+import NumberInput from '@/app/components/NumberInput'
 
 type Rango = {
   id: string
@@ -183,13 +183,12 @@ export default function EditarPaqueteForm({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+       <div className="grid grid-cols-3 gap-4">
             <div>
               <label className="block text-sm text-stone-700 mb-1.5">Horas servicio</label>
-              <input
-                type="number"
+              <NumberInput
                 value={horas}
-                onChange={(e) => setHoras(Number(e.target.value))}
+                onChange={setHoras}
                 min={1}
                 max={24}
                 className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
@@ -197,21 +196,17 @@ export default function EditarPaqueteForm({
             </div>
             <div>
               <label className="block text-sm text-stone-700 mb-1.5">Pax mínimo</label>
-              <input
-                type="number"
+              <NumberInput
                 value={pax}
-                onChange={(e) => setPax(Number(e.target.value))}
-                min={0}
+                onChange={setPax}
                 className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
               />
             </div>
             <div>
               <label className="block text-sm text-stone-700 mb-1.5">Anticipo (%)</label>
-              <input
-                type="number"
+              <NumberInput
                 value={anticipo}
-                onChange={(e) => setAnticipo(Number(e.target.value))}
-                min={0}
+                onChange={setAnticipo}
                 max={100}
                 className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
               />
@@ -242,13 +237,11 @@ export default function EditarPaqueteForm({
           {rangos.map((rango, idx) => (
             <div key={rango.id}>
               <label className="block text-xs text-stone-600 mb-1">{rango.nombre} pax</label>
-              <div className="relative">
+            <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500">$</span>
-                <input
-                  type="number"
+                <NumberInput
                   value={precios[idx] || 0}
-                  onChange={(e) => actualizarPrecio(idx, Number(e.target.value))}
-                  min={0}
+                  onChange={(v) => actualizarPrecio(idx, v)}
                   className="w-full pl-7 pr-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
                 />
               </div>
