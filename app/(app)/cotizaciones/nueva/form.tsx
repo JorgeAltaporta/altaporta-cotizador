@@ -37,6 +37,13 @@ type Rango = {
   orden: number
 }
 
+type WeddingPlanner = {
+  id: string
+  nombre: string
+  contacto: string | null
+  comision_default: number
+}
+
 type Usuario = {
   id: string
   nombre: string
@@ -49,42 +56,78 @@ export default function NuevaCotizacionForm({
   paquetes,
   zonas,
   rangos,
+  weddingPlanners,
+  ejecutivos,
 }: {
   usuario: Usuario
   paquetes: Paquete[]
   zonas: Zona[]
   rangos: Rango[]
+  weddingPlanners: WeddingPlanner[]
+  ejecutivos: Usuario[]
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
-  // Cliente
+  // Datos generales
   const [clienteNombre, setClienteNombre] = useState('')
-  const [clienteEmail, setClienteEmail] = useState('')
-  const [clienteTelefono, setClienteTelefono] = useState('')
+  const [wpId, setWpId] = useState('WP-DIRECTO')
+  const [comisionOverride, setComisionOverride] = useState<number | null>(null)
+  const [ejecutivoId, setEjecutivoId] = useState(
+    usuario.rol === 'EJECUTIVO' ? usuario.id : ''
+  )
 
   // Evento
   const [eventoNombre, setEventoNombre] = useState('Banquete')
   const [fecha, setFecha] = useState('')
-  const [zonaId, setZonaId] = useState('')
-  const [locacionId, setLocacionId] = useState('')
+  const [locacionTexto, setLocacionTexto] = useState('')
+  const [zonaIdManual, setZonaIdManual] = useState<string | null>(null)
   const [pax, setPax] = useState(0)
   const [paqueteId, setPaqueteId] = useState('')
 
-  // Datos derivados
-  const zonaSeleccionada = zonas.find((z) => z.id === zonaId)
-  const paqueteSeleccionado = paquetes.find((p) => p.id === paqueteId)
+  // ─────────────────────────────────────────────────────────────────
+  // Lógica de auto-detección de zona desde locación
+  // ─────────────────────────────────────────────────────────────────
+  const todasLasLocaciones = useMemo(() => {
+    const lista: Array<{ id: string; nombre: string; zonaId: string; zonaNombre: string }> = []
+    zonas.forEach((z) => {
+      ;(z.locaciones || []).forEach((l) => {
+        lista.push({
+          id: l.id,
+          nombre: l.nombre,
+          zonaId: z.id,
+          zonaNombre: z.nombre,
+        })
+      })
+    })
+    return lista
+  }, [zonas])
+
+  const zonaAutoDetectada = useMemo(() => {
+    if (!locacionTexto.trim()) return null
+    const match = todasLasLocaciones.find(
+      (l) => l.nombre.toLowerCase() === locacionTexto.toLowerCase()
+    )
+    if (!match) return null
+    return zonas.find((z) => z.id === match.zonaId) || null
+  }, [locacionTexto, todasLasLocaciones, zonas])
+
+  const zonaIdActiva = zonaIdManual || zonaAutoDetectada?.id || ''
+  const zonaActiva = zonas.find((z) => z.id === zonaIdActiva)
+
+  const locacionEsNueva = locacionTexto.trim().length > 0 && !zonaAutoDetectada
+
+  const wp = weddingPlanners.find((w) => w.id === wpId)
 
   // Filtrar paquetes según zona
   const paquetesDisponibles = useMemo(() => {
-    if (!zonaId) return paquetes
+    if (!zonaIdActiva) return paquetes
     return paquetes.filter((p) => {
-      // Si zonas_permitidas es vacío o null, todas las zonas son permitidas
       if (!p.zonas_permitidas || p.zonas_permitidas.length === 0) return true
-      return p.zonas_permitidas.includes(zonaId)
+      return p.zonas_permitidas.includes(zonaIdActiva)
     })
-  }, [zonaId, paquetes])
+  }, [zonaIdActiva, paquetes])
 
   // Encontrar el rango correspondiente al pax
   const rangoIndex = useMemo(() => {
@@ -98,17 +141,17 @@ export default function NuevaCotizacionForm({
     return -1
   }, [pax, rangos])
 
+  const paqueteSeleccionado = paquetes.find((p) => p.id === paqueteId)
+
   // Cálculos
   const calculos = useMemo(() => {
-    if (!paqueteSeleccionado || !zonaSeleccionada || pax <= 0 || rangoIndex === -1) {
+    if (!paqueteSeleccionado || !zonaActiva || pax <= 0 || rangoIndex === -1) {
       return null
     }
 
     const precioPorPax = paqueteSeleccionado.precios[rangoIndex] || 0
     const subtotalPaquete = precioPorPax * pax
-
-    const flete = (zonaSeleccionada.precios_flete[rangoIndex] || 0) * pax
-
+    const flete = (zonaActiva.precios_flete[rangoIndex] || 0) * pax
     const total = subtotalPaquete + flete
 
     return {
@@ -118,13 +161,11 @@ export default function NuevaCotizacionForm({
       total,
       rangoNombre: rangos[rangoIndex].nombre,
     }
-  }, [paqueteSeleccionado, zonaSeleccionada, pax, rangoIndex, rangos])
+  }, [paqueteSeleccionado, zonaActiva, pax, rangoIndex, rangos])
 
   async function generarFolio(supabase: ReturnType<typeof createClient>): Promise<string> {
     const año = new Date().getFullYear()
     const prefijo = `AP-${año}-`
-
-    // Buscar el folio más alto del año
     const { data } = await supabase
       .from('cotizaciones')
       .select('folio')
@@ -137,7 +178,6 @@ export default function NuevaCotizacionForm({
       const ultimoNumero = parseInt(data[0].folio.split('-')[2])
       if (!isNaN(ultimoNumero)) siguiente = ultimoNumero + 1
     }
-
     return `${prefijo}${String(siguiente).padStart(3, '0')}`
   }
 
@@ -145,15 +185,23 @@ export default function NuevaCotizacionForm({
     setError(null)
 
     if (!clienteNombre.trim()) {
-      setError('El nombre del cliente es obligatorio')
+      setError('El nombre del cliente o evento es obligatorio')
+      return
+    }
+    if (!ejecutivoId) {
+      setError('Selecciona un ejecutivo')
       return
     }
     if (!fecha) {
       setError('La fecha del evento es obligatoria')
       return
     }
-    if (!zonaId) {
-      setError('Selecciona una zona')
+    if (!locacionTexto.trim()) {
+      setError('Ingresa la locación')
+      return
+    }
+    if (!zonaIdActiva) {
+      setError('La locación es nueva. Selecciona la zona a la que pertenece.')
       return
     }
     if (!paqueteId) {
@@ -171,14 +219,42 @@ export default function NuevaCotizacionForm({
 
     startTransition(async () => {
       const supabase = createClient()
+
+      // Si la locación es nueva, agregarla a la zona como PENDIENTE
+      if (locacionEsNueva && zonaIdActiva) {
+        const zonaActualizar = zonas.find((z) => z.id === zonaIdActiva)
+        if (zonaActualizar) {
+          const nuevaLocacion = {
+            id: `loc_${Date.now()}`,
+            nombre: locacionTexto.trim(),
+            estado: usuario.puede_aprobar ? 'ACTIVA' : 'PENDIENTE',
+            creado_por: usuario.id,
+          }
+          const locacionesActualizadas = [
+            ...(zonaActualizar.locaciones || []),
+            nuevaLocacion,
+          ]
+          await supabase
+            .from('zonas')
+            .update({ locaciones: locacionesActualizadas })
+            .eq('id', zonaActualizar.id)
+        }
+      }
+
       const folio = await generarFolio(supabase)
+
+      // Buscar ID de locación si existe
+      const locacionMatch = todasLasLocaciones.find(
+        (l) => l.nombre.toLowerCase() === locacionTexto.toLowerCase()
+      )
 
       const evento = {
         id: `evt_${Date.now()}`,
         nombre: eventoNombre,
         fecha,
-        zona_id: zonaId,
-        locacion_id: locacionId || null,
+        zona_id: zonaIdActiva,
+        locacion_id: locacionMatch?.id || null,
+        locacion_texto: locacionTexto.trim(),
         pax,
         paquete_id: paqueteId,
         rango_index: rangoIndex,
@@ -195,10 +271,10 @@ export default function NuevaCotizacionForm({
         .insert({
           folio,
           cliente_nombre: clienteNombre.trim(),
-          cliente_email: clienteEmail.trim() || null,
-          cliente_telefono: clienteTelefono.trim() || null,
           estado: usuario.puede_aprobar ? 'BORRADOR' : 'PENDIENTE',
-          ejecutivo_id: usuario.id,
+          ejecutivo_id: ejecutivoId,
+          wp_id: wpId === 'WP-DIRECTO' ? null : wpId,
+          comision_override: comisionOverride,
           eventos: [evento],
           adicionales_globales: [],
           historial: [
@@ -225,45 +301,98 @@ export default function NuevaCotizacionForm({
 
   return (
     <div className="space-y-6">
-      {/* CLIENTE */}
+      {/* DATOS GENERALES */}
       <section className="bg-white rounded-2xl border border-stone-200 p-6">
-        <h2 className="font-serif text-xl text-stone-900 mb-4">Cliente</h2>
+        <h2 className="font-serif text-xl text-stone-900 mb-4">Datos generales</h2>
 
         <div className="space-y-4">
           <div>
             <label className="block text-sm text-stone-700 mb-1.5">
-              Nombre <span className="text-rose-500">*</span>
+              Nombre del cliente o evento <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
               value={clienteNombre}
               onChange={(e) => setClienteNombre(e.target.value)}
-              placeholder="Ej: María García"
+              placeholder="Ej: Boda Renee & Bryan"
               className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
             />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm text-stone-700 mb-1.5">Wedding Planner / Agencia</label>
+            <select
+              value={wpId}
+              onChange={(e) => {
+                setWpId(e.target.value)
+                setComisionOverride(null)
+              }}
+              className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
+            >
+              {weddingPlanners.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.nombre}
+                </option>
+              ))}
+            </select>
+            {wp && wp.id !== 'WP-DIRECTO' && (
+              <div className="mt-2 text-xs text-stone-500">
+                {wp.contacto && <>Contacto: {wp.contacto} · </>}
+                Comisión: {wp.comision_default}%
+              </div>
+            )}
+          </div>
+
+          {wp && wp.id !== 'WP-DIRECTO' && (
             <div>
-              <label className="block text-sm text-stone-700 mb-1.5">Email</label>
-              <input
-                type="email"
-                value={clienteEmail}
-                onChange={(e) => setClienteEmail(e.target.value)}
-                placeholder="cliente@ejemplo.com"
-                className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
-              />
+              <label className="block text-sm text-stone-700 mb-1.5">
+                Override de comisión WP (opcional)
+              </label>
+              <div className="flex gap-2 items-center">
+                <NumberInput
+                  value={comisionOverride ?? 0}
+                  onChange={(v) => setComisionOverride(v === 0 ? null : v)}
+                  max={100}
+                  placeholder={`Default: ${wp.comision_default}%`}
+                  className="flex-1 px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
+                />
+                <span className="text-stone-500">%</span>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm text-stone-700 mb-1.5">Teléfono</label>
-              <input
-                type="tel"
-                value={clienteTelefono}
-                onChange={(e) => setClienteTelefono(e.target.value)}
-                placeholder="999 123 4567"
-                className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
-              />
-            </div>
+          )}
+
+          <div>
+            <label className="block text-sm text-stone-700 mb-1.5">
+              Ejecutivo asignado <span className="text-rose-500">*</span>
+            </label>
+            {usuario.rol === 'EJECUTIVO' ? (
+              <div className="px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700">
+                {usuario.nombre}{' '}
+                <span className="text-xs text-stone-500">(asignado automáticamente)</span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {ejecutivos.map((ej) => (
+                  <button
+                    key={ej.id}
+                    type="button"
+                    onClick={() => setEjecutivoId(ej.id)}
+                    className={`px-4 py-2.5 rounded-lg border-2 text-sm transition ${
+                      ejecutivoId === ej.id
+                        ? 'border-amber-600 bg-amber-50 text-amber-900'
+                        : 'border-stone-200 bg-white text-stone-700 hover:border-stone-300'
+                    }`}
+                  >
+                    {ej.nombre}
+                  </button>
+                ))}
+                {ejecutivos.length === 0 && (
+                  <div className="col-span-2 text-sm text-stone-500 italic px-3 py-2">
+                    No hay ejecutivos registrados
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -280,7 +409,7 @@ export default function NuevaCotizacionForm({
                 type="text"
                 value={eventoNombre}
                 onChange={(e) => setEventoNombre(e.target.value)}
-                placeholder="Banquete"
+                placeholder="Banquete, Welcome cocktail..."
                 className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
               />
             </div>
@@ -297,51 +426,100 @@ export default function NuevaCotizacionForm({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm text-stone-700 mb-1.5">
-                Zona <span className="text-rose-500">*</span>
-              </label>
-              <select
-                value={zonaId}
-                onChange={(e) => {
-                  setZonaId(e.target.value)
-                  setLocacionId('')
-                  // Si el paquete actual ya no es compatible, limpiarlo
-                  if (paqueteId) {
-                    const p = paquetes.find((p) => p.id === paqueteId)
-                    if (p?.zonas_permitidas && p.zonas_permitidas.length > 0 && !p.zonas_permitidas.includes(e.target.value)) {
-                      setPaqueteId('')
-                    }
-                  }
-                }}
-                className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
-              >
-                <option value="">— Selecciona zona —</option>
-                {zonas.map((z) => (
-                  <option key={z.id} value={z.id}>
-                    {z.id} · {z.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* Locación con autocomplete */}
+          <div>
+            <label className="block text-sm text-stone-700 mb-1.5">
+              Locación <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              list="locaciones-disponibles"
+              value={locacionTexto}
+              onChange={(e) => {
+                setLocacionTexto(e.target.value)
+                setZonaIdManual(null)
+              }}
+              placeholder="Ej: Hacienda Xcanatún, Casa Faller..."
+              className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
+            />
+            <datalist id="locaciones-disponibles">
+              {todasLasLocaciones.map((l) => (
+                <option key={l.id} value={l.nombre}>
+                  {l.zonaNombre}
+                </option>
+              ))}
+            </datalist>
 
-            <div>
-              <label className="block text-sm text-stone-700 mb-1.5">Locación</label>
-              <select
-                value={locacionId}
-                onChange={(e) => setLocacionId(e.target.value)}
-                disabled={!zonaSeleccionada}
-                className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600 disabled:bg-stone-50 disabled:text-stone-400"
+            {zonaAutoDetectada && !zonaIdManual && (
+              <div className="mt-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded p-2">
+                ✓ Zona auto-detectada: <strong>{zonaAutoDetectada.id} · {zonaAutoDetectada.nombre}</strong>
+              </div>
+            )}
+
+            {zonaIdManual && (
+              <div className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                ⚠️ Zona cambiada manualmente: <strong>{zonaActiva?.nombre}</strong>
+              </div>
+            )}
+
+            {locacionEsNueva && (
+              <div className="mt-2 bg-blue-50 border border-blue-200 rounded p-3">
+                <div className="text-xs text-blue-900 font-medium mb-2">
+                  📍 Locación nueva no registrada
+                </div>
+                <div className="text-xs text-blue-700 mb-2">
+                  Selecciona la zona a la que pertenece. Se agregará al catálogo
+                  {usuario.puede_aprobar ? ' como activa.' : ' como pendiente de aprobación.'}
+                </div>
+                <select
+                  value={zonaIdManual || ''}
+                  onChange={(e) => setZonaIdManual(e.target.value || null)}
+                  className="w-full px-3 py-2 border border-blue-300 rounded text-sm bg-white"
+                >
+                  <option value="">— Selecciona zona —</option>
+                  {zonas.map((z) => (
+                    <option key={z.id} value={z.id}>
+                      {z.id} · {z.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Botón override manual cuando hay zona auto-detectada */}
+            {zonaAutoDetectada && !zonaIdManual && (
+              <button
+                type="button"
+                onClick={() => setZonaIdManual(zonaAutoDetectada.id)}
+                className="text-xs text-stone-500 hover:text-stone-700 mt-2"
               >
-                <option value="">— Selecciona locación —</option>
-                {zonaSeleccionada?.locaciones.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
+                ¿Cambiar zona manualmente?
+              </button>
+            )}
+
+            {zonaIdManual && (
+              <div className="mt-2">
+                <label className="block text-xs text-stone-600 mb-1">Cambiar zona:</label>
+                <select
+                  value={zonaIdManual}
+                  onChange={(e) => setZonaIdManual(e.target.value)}
+                  className="w-full px-3 py-2 border border-stone-300 rounded text-sm"
+                >
+                  {zonas.map((z) => (
+                    <option key={z.id} value={z.id}>
+                      {z.id} · {z.nombre}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={() => setZonaIdManual(null)}
+                  className="text-xs text-stone-500 hover:text-stone-700 mt-1"
+                >
+                  ↩ Volver a zona auto-detectada
+                </button>
+              </div>
+            )}
           </div>
 
           <div>
@@ -373,7 +551,7 @@ export default function NuevaCotizacionForm({
             <select
               value={paqueteId}
               onChange={(e) => setPaqueteId(e.target.value)}
-              disabled={!zonaId}
+              disabled={!zonaIdActiva}
               className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600 disabled:bg-stone-50 disabled:text-stone-400"
             >
               <option value="">— Selecciona paquete —</option>
@@ -383,12 +561,12 @@ export default function NuevaCotizacionForm({
                 </option>
               ))}
             </select>
-            {!zonaId && (
+            {!zonaIdActiva && (
               <p className="text-xs text-stone-500 mt-1">
-                Selecciona una zona primero
+                Define la locación primero
               </p>
             )}
-            {zonaId && paquetesDisponibles.length === 0 && (
+            {zonaIdActiva && paquetesDisponibles.length === 0 && (
               <p className="text-xs text-rose-600 mt-1">
                 ⚠️ No hay paquetes disponibles para esta zona
               </p>
@@ -405,20 +583,22 @@ export default function NuevaCotizacionForm({
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-stone-700">
-                {paqueteSeleccionado?.nombre} · {pax} pax · ${calculos.precioPorPax.toLocaleString('es-MX')} c/u
+                {paqueteSeleccionado?.nombre} · {pax} pax × ${calculos.precioPorPax.toLocaleString('es-MX')}
               </span>
               <span className="font-medium text-stone-900">
                 ${calculos.subtotalPaquete.toLocaleString('es-MX')}
               </span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-stone-700">
-                Flete (Zona {zonaSeleccionada?.id}) · ${calculos.flete / pax} × {pax} pax
-              </span>
-              <span className="font-medium text-stone-900">
-                ${calculos.flete.toLocaleString('es-MX')}
-              </span>
-            </div>
+            {calculos.flete > 0 && (
+              <div className="flex justify-between">
+                <span className="text-stone-700">
+                  Flete (Zona {zonaActiva?.id}) · ${calculos.flete / pax} × {pax} pax
+                </span>
+                <span className="font-medium text-stone-900">
+                  ${calculos.flete.toLocaleString('es-MX')}
+                </span>
+              </div>
+            )}
             <div className="border-t border-amber-300 pt-2 mt-2 flex justify-between">
               <span className="font-medium text-stone-900">Total</span>
               <span className="font-serif text-2xl text-amber-900">
@@ -428,7 +608,7 @@ export default function NuevaCotizacionForm({
           </div>
 
           <p className="text-xs text-stone-600 mt-4">
-            ℹ️ Este es el cálculo base. Después podrás agregar proteínas, adicionales y otros conceptos.
+            ℹ️ Cálculo base. Después podrás agregar proteínas, adicionales y otros conceptos.
           </p>
         </section>
       )}
