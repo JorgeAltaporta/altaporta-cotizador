@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import NumberInput from '@/app/components/NumberInput'
 
 const COLORES_SUGERIDOS = [
   '#F4A78F',
@@ -158,10 +159,9 @@ export default function NuevoPaqueteForm() {
         <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="block text-sm text-stone-700 mb-1.5">Horas servicio</label>
-            <input
-              type="number"
+            <NumberInput
               value={horas}
-              onChange={(e) => setHoras(Number(e.target.value))}
+              onChange={setHoras}
               min={1}
               max={24}
               className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
@@ -169,15 +169,22 @@ export default function NuevoPaqueteForm() {
           </div>
           <div>
             <label className="block text-sm text-stone-700 mb-1.5">Pax mínimo</label>
-            <input
-              type="number"
+            <NumberInput
               value={pax}
-              onChange={(e) => setPax(Number(e.target.value))}
-              min={0}
+              onChange={setPax}
               className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
             />
           </div>
           <div>
+            <label className="block text-sm text-stone-700 mb-1.5">Anticipo (%)</label>
+            <NumberInput
+              value={anticipo}
+              onChange={setAnticipo}
+              max={100}
+              className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
+            />
+          </div>
+        </div>
             <label className="block text-sm text-stone-700 mb-1.5">Anticipo (%)</label>
             <input
               type="number"
