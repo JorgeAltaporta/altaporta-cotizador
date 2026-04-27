@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import ArchivadasToggle from './ArchivadasToggle'
 
 type Locacion = { id: string; nombre: string }
 
@@ -78,12 +79,9 @@ export default async function ZonasPage() {
       )}
 
       {archivadas.length > 0 && (
-        <div className="mt-12">
-          <h2 className="font-serif text-xl text-stone-500 mb-4">
-            Archivadas ({archivadas.length})
-          </h2>
+        <ArchivadasToggle count={archivadas.length}>
           <ZonasGrupo zonas={archivadas} puedeEditar={puedeEditar} archivadas />
-        </div>
+        </ArchivadasToggle>
       )}
 
       {todas.length === 0 && (
