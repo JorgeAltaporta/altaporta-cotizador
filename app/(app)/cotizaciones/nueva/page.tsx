@@ -12,8 +12,8 @@ export default async function NuevaCotizacionPage() {
     .eq('id', user!.id)
     .single()
 
-  // Cargar datos del catálogo necesarios
-  const [paquetesResp, zonasResp, rangosResp] = await Promise.all([
+  // Cargar todo el catálogo necesario en paralelo
+  const [paquetesResp, zonasResp, rangosResp, wpsResp, ejecutivosResp] = await Promise.all([
     supabase
       .from('paquetes')
       .select('*')
@@ -28,6 +28,15 @@ export default async function NuevaCotizacionPage() {
       .from('rangos')
       .select('*')
       .order('orden'),
+    supabase
+      .from('wedding_planners')
+      .select('id, nombre, contacto, comision_default')
+      .order('nombre'),
+    supabase
+      .from('profiles')
+      .select('id, nombre, rol, puede_aprobar')
+      .eq('rol', 'EJECUTIVO')
+      .order('nombre'),
   ])
 
   return (
@@ -44,7 +53,7 @@ export default async function NuevaCotizacionPage() {
         </div>
         <h1 className="font-serif text-4xl text-stone-900">Crear cotización</h1>
         <p className="text-stone-600 mt-2">
-          Llena los datos del cliente y del evento.
+          Llena los datos generales y del primer evento.
         </p>
       </div>
 
@@ -53,6 +62,8 @@ export default async function NuevaCotizacionPage() {
         paquetes={paquetesResp.data || []}
         zonas={zonasResp.data || []}
         rangos={rangosResp.data || []}
+        weddingPlanners={wpsResp.data || []}
+        ejecutivos={ejecutivosResp.data || []}
       />
     </div>
   )
