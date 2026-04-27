@@ -58,6 +58,7 @@ export default function EditarZonaForm({
   const [fletes, setFletes] = useState<number[]>(
     rangos.map((_, i) => zona.precios_flete?.[i] || 0)
   )
+  const [confirmarArchivar, setConfirmarArchivar] = useState(false)
 
   function actualizarFlete(idx: number, valor: number) {
     const nuevos = [...fletes]
@@ -81,8 +82,9 @@ export default function EditarZonaForm({
     setLocaciones(locaciones.filter((l) => l.id !== id))
   }
 
-  async function handleGuardar() {
+  async function handleGuardar(estadoFinal?: string) {
     setMensaje(null)
+    const estadoAGuardar = estadoFinal || estado
     startTransition(async () => {
       const supabase = createClient()
       const { error } = await supabase
@@ -91,7 +93,7 @@ export default function EditarZonaForm({
           nombre,
           descripcion: descripcion || null,
           color,
-          estado,
+          estado: estadoAGuardar,
           locaciones,
           precios_flete: fletes,
         })
@@ -102,13 +104,37 @@ export default function EditarZonaForm({
         return
       }
 
+      setEstado(estadoAGuardar)
       setMensaje({ tipo: 'ok', texto: 'Cambios guardados.' })
       router.refresh()
     })
   }
 
+  async function handleArchivar() {
+    setConfirmarArchivar(false)
+    await handleGuardar('ARCHIVADO')
+  }
+
+  async function handleRestaurar() {
+    await handleGuardar('ACTIVO')
+  }
+
   return (
     <div className="space-y-6">
+      {/* Badge de estado actual */}
+      {estado !== 'ACTIVO' && (
+        <div
+          className={`p-3 rounded-lg text-sm ${
+            estado === 'ARCHIVADO'
+              ? 'bg-stone-100 border border-stone-300 text-stone-700'
+              : 'bg-amber-50 border border-amber-200 text-amber-700'
+          }`}
+        >
+          {estado === 'ARCHIVADO' && '📦 Esta zona está archivada. No aparece en cotizaciones nuevas.'}
+          {estado === 'BORRADOR' && '✏️ Esta zona está en borrador. No aparece en cotizaciones nuevas.'}
+        </div>
+      )}
+
       {/* INFORMACIÓN GENERAL */}
       <section className="bg-white rounded-2xl border border-stone-200 p-6">
         <h2 className="font-serif text-xl text-stone-900 mb-4">Información general</h2>
@@ -132,24 +158,6 @@ export default function EditarZonaForm({
               rows={2}
               className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm text-stone-700 mb-1.5">Estado</label>
-            <select
-              value={estado}
-              onChange={(e) => setEstado(e.target.value)}
-              className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
-            >
-              <option value="ACTIVO">Activo</option>
-              <option value="ARCHIVADO">Archivado</option>
-              <option value="BORRADOR">Borrador</option>
-            </select>
-            {estado === 'ARCHIVADO' && (
-              <p className="text-xs text-stone-500 mt-1">
-                ⚠️ Las zonas archivadas no aparecen en cotizaciones nuevas.
-              </p>
-            )}
           </div>
 
           <div>
@@ -249,13 +257,68 @@ export default function EditarZonaForm({
         </div>
       </section>
 
+      {/* ZONA DE PELIGRO - ARCHIVAR */}
+      <section className="bg-stone-50 rounded-2xl border border-stone-200 p-6">
+        <h2 className="font-serif text-lg text-stone-700 mb-2">Acciones</h2>
+
+        {estado === 'ACTIVO' || estado === 'BORRADOR' ? (
+          <div>
+            <p className="text-sm text-stone-600 mb-3">
+              Archivar la zona la oculta de cotizaciones nuevas pero no la elimina. Las cotizaciones existentes que la usan no se ven afectadas.
+            </p>
+            {confirmarArchivar ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-stone-700">¿Confirmar?</span>
+                <button
+                  type="button"
+                  onClick={handleArchivar}
+                  disabled={isPending}
+                  className="text-sm bg-stone-700 hover:bg-stone-800 text-white px-4 py-1.5 rounded-lg"
+                >
+                  Sí, archivar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmarArchivar(false)}
+                  className="text-sm text-stone-600 hover:text-stone-900 px-3 py-1.5"
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmarArchivar(true)}
+                className="text-sm border border-stone-300 hover:bg-stone-100 text-stone-700 px-4 py-2 rounded-lg"
+              >
+                📦 Archivar zona
+              </button>
+            )}
+          </div>
+        ) : (
+          <div>
+            <p className="text-sm text-stone-600 mb-3">
+              Esta zona está archivada. Restáurala para que vuelva a aparecer en cotizaciones nuevas.
+            </p>
+            <button
+              type="button"
+              onClick={handleRestaurar}
+              disabled={isPending}
+              className="text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg"
+            >
+              ↩ Restaurar zona
+            </button>
+          </div>
+        )}
+      </section>
+
       {/* BOTONES */}
       <div className="flex items-center justify-between sticky bottom-4 bg-white rounded-2xl border border-stone-200 p-4 shadow-lg">
         <Link href="/catalogo/zonas" className="text-sm text-stone-600 hover:text-stone-900">
           Cancelar
         </Link>
         <button
-          onClick={handleGuardar}
+          onClick={() => handleGuardar()}
           disabled={isPending}
           className="bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white px-6 py-2.5 rounded-lg transition"
         >
