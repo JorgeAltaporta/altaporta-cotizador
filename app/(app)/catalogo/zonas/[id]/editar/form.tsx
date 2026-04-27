@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import NumberInput from '@/app/components/NumberInput'
 
 type Rango = {
   id: string
@@ -226,13 +227,11 @@ export default function EditarZonaForm({
           {rangos.map((rango, idx) => (
             <div key={rango.id}>
               <label className="block text-xs text-stone-600 mb-1">{rango.nombre} pax</label>
-              <div className="relative">
+             <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500">$</span>
-                <input
-                  type="number"
+                <NumberInput
                   value={fletes[idx] || 0}
-                  onChange={(e) => actualizarFlete(idx, Number(e.target.value))}
-                  min={0}
+                  onChange={(v) => actualizarFlete(idx, v)}
                   className="w-full pl-7 pr-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
                 />
               </div>
