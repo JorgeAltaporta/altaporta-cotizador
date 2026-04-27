@@ -46,6 +46,7 @@ export default function AdicionalesManager({
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
   const [adicionales, setAdicionales] = useState(adicionalesIniciales)
   const [creando, setCreando] = useState(false)
+  const [mostrarArchivados, setMostrarArchivados] = useState(false)
 
   function mostrarMensaje(tipo: 'ok' | 'error', texto: string) {
     setMensaje({ tipo, texto })
@@ -190,23 +191,29 @@ export default function AdicionalesManager({
         )}
 
         {archivados.length > 0 && (
-          <div>
-            <h2 className="font-serif text-2xl text-stone-500 mb-4">
-              Archivados ({archivados.length})
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {archivados.map((ad) => (
-                <AdicionalItem
-                  key={ad.id}
-                  adicional={ad}
-                  categorias={categorias}
-                  zonas={zonas}
-                  puedeEditar={puedeEditar}
-                  onActualizar={actualizar}
-                  archivado
-                />
-              ))}
-            </div>
+          <div className="mt-12">
+            <button
+              onClick={() => setMostrarArchivados(!mostrarArchivados)}
+              className="flex items-center gap-2 text-sm text-stone-500 hover:text-stone-700 mb-4"
+            >
+              <span>{mostrarArchivados ? '▼' : '▶'}</span>
+              <span>Archivados ({archivados.length})</span>
+            </button>
+            {mostrarArchivados && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {archivados.map((ad) => (
+                  <AdicionalItem
+                    key={ad.id}
+                    adicional={ad}
+                    categorias={categorias}
+                    zonas={zonas}
+                    puedeEditar={puedeEditar}
+                    onActualizar={actualizar}
+                    archivado
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -383,7 +390,7 @@ function AdicionalItem({
           </div>
           <div>
             <label className="block text-xs text-stone-600 mb-1">Precio base</label>
-           <div className="relative">
+            <div className="relative">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500">$</span>
               <NumberInput
                 value={precio}
@@ -421,7 +428,7 @@ function AdicionalItem({
               {zonas.map((z) => (
                 <div key={z.id}>
                   <label className="block text-xs text-stone-600 mb-1">Zona {z.id}</label>
-                 <div className="relative">
+                  <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500 text-xs">$</span>
                     <NumberInput
                       value={preciosPorZona[z.id] || 0}
