@@ -1,16 +1,20 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 
+type Evento = {
+  fecha?: string
+  pax?: number
+  zona_id?: string
+  total?: number
+}
+
 type Cotizacion = {
   id: string
-  numero: string | null
+  folio: string | null
   cliente_nombre: string
-  fecha_evento: string | null
-  zona_id: string | null
-  pax: number | null
-  total: number | null
   estado: string
-  ejecutivo: string | null
+  ejecutivo_id: string | null
+  eventos: Evento[] | null
   fecha_creacion: string
 }
 
@@ -24,16 +28,9 @@ const COLORES_ESTADO: Record<string, string> = {
 export default async function CotizacionesPage() {
   const supabase = await createClient()
 
-  const { data: { user } } = await supabase.auth.getUser()
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('puede_aprobar, nombre')
-    .eq('id', user!.id)
-    .single()
-
   const { data: cotizaciones, error } = await supabase
     .from('cotizaciones')
-    .select('id, numero, cliente_nombre, fecha_evento, zona_id, pax, total, estado, ejecutivo, fecha_creacion')
+    .select('id, folio, cliente_nombre, estado, ejecutivo_id, eventos, fecha_creacion')
     .order('fecha_creacion', { ascending: false })
 
   if (error) {
@@ -107,56 +104,64 @@ export default async function CotizacionesPage() {
               </tr>
             </thead>
             <tbody>
-              {todas.map((c) => (
-                <tr key={c.id} className="border-b border-stone-100 hover:bg-stone-50 transition">
-                  <td className="px-6 py-4">
-                    <div className="font-medium text-stone-900">
-                      {c.cliente_nombre || 'Sin nombre'}
-                    </div>
-                    {c.numero && (
-                      <div className="text-xs text-stone-500">{c.numero}</div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-stone-700">
-                    {c.fecha_evento
-                      ? new Date(c.fecha_evento).toLocaleDateString('es-MX', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })
-                      : '—'}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-stone-700">
-                    {c.pax ? `${c.pax} pax` : '—'}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`text-xs px-2 py-1 rounded font-medium ${
-                        COLORES_ESTADO[c.estado] || 'bg-stone-100 text-stone-700'
-                      }`}
-                    >
-                      {c.estado}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    {c.total ? (
+              {todas.map((c) => {
+                const primerEvento = c.eventos?.[0]
+                const totalCotizacion = (c.eventos || []).reduce(
+                  (sum, e) => sum + (e.total || 0),
+                  0
+                )
+
+                return (
+                  <tr key={c.id} className="border-b border-stone-100 hover:bg-stone-50 transition">
+                    <td className="px-6 py-4">
                       <div className="font-medium text-stone-900">
-                        ${c.total.toLocaleString('es-MX')}
+                        {c.cliente_nombre || 'Sin nombre'}
                       </div>
-                    ) : (
-                      <span className="text-stone-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <Link
-                      href={`/cotizaciones/${c.id}`}
-                      className="text-sm text-amber-700 hover:text-amber-900"
-                    >
-                      Ver →
-                    </Link>
-                  </td>
-                </tr>
-              ))}
+                      {c.folio && (
+                        <div className="text-xs text-stone-500">{c.folio}</div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-stone-700">
+                      {primerEvento?.fecha
+                        ? new Date(primerEvento.fecha).toLocaleDateString('es-MX', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          })
+                        : '—'}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-stone-700">
+                      {primerEvento?.pax ? `${primerEvento.pax} pax` : '—'}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span
+                        className={`text-xs px-2 py-1 rounded font-medium ${
+                          COLORES_ESTADO[c.estado] || 'bg-stone-100 text-stone-700'
+                        }`}
+                      >
+                        {c.estado}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {totalCotizacion > 0 ? (
+                        <div className="font-medium text-stone-900">
+                          ${totalCotizacion.toLocaleString('es-MX')}
+                        </div>
+                      ) : (
+                        <span className="text-stone-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <Link
+                        href={`/cotizaciones/${c.id}`}
+                        className="text-sm text-amber-700 hover:text-amber-900"
+                      >
+                        Ver →
+                      </Link>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
