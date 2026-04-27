@@ -19,7 +19,7 @@ export default async function HoraExtraPage() {
 
   const [horaExtraResp, zonasResp, rangosResp] = await Promise.all([
     supabase.from('adicionales').select('*').eq('id', 'HORA-EXTRA').single(),
-    supabase.from('zonas').select('id, nombre').order('id'),
+    supabase.from('zonas').select('id, nombre').eq('estado', 'ACTIVO').order('id'),
     supabase.from('rangos').select('*').order('orden'),
   ])
 
