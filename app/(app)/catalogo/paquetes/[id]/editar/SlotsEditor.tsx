@@ -157,11 +157,14 @@ function SlotCard({
 
         <div className="flex items-center gap-2">
           <input
-            type="number"
-            value={slot.porcentaje}
-            onChange={(e) => onUpdate({ porcentaje: Number(e.target.value) })}
-            min={0}
-            max={100}
+            type="text"
+            inputMode="numeric"
+            value={slot.porcentaje === 0 ? '' : slot.porcentaje}
+            onChange={(e) => {
+              const v = e.target.value.replace(/[^\d]/g, '')
+              onUpdate({ porcentaje: v === '' ? 0 : Number(v) })
+            }}
+            placeholder="0"
             className="w-20 px-2 py-1.5 border border-stone-300 rounded bg-white text-center font-medium focus:outline-none focus:ring-2 focus:ring-amber-600"
           />
           <span className="text-stone-600">%</span>
