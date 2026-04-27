@@ -41,13 +41,24 @@ export default async function PaquetesPage() {
         </Link>
       </div>
 
-      <div className="mb-10">
-        <div className="text-xs tracking-widest text-amber-700 uppercase mb-2">
-          Catálogo · Paquetes
+      <div className="mb-10 flex items-start justify-between">
+        <div>
+          <div className="text-xs tracking-widest text-amber-700 uppercase mb-2">
+            Catálogo · Paquetes
+          </div>
+          <h1 className="font-serif text-4xl text-stone-900">
+            Paquetes
+          </h1>
         </div>
-        <h1 className="font-serif text-4xl text-stone-900">
-          Paquetes
-        </h1>
+
+        {puedeEditar && (
+          <Link
+            href="/catalogo/paquetes/nuevo"
+            className="text-sm bg-amber-700 hover:bg-amber-800 text-white px-4 py-2 rounded-lg transition"
+          >
+            + Nuevo paquete
+          </Link>
+        )}
       </div>
 
       <div className="space-y-4">
@@ -79,6 +90,11 @@ export default async function PaquetesPage() {
                   {paquete.es_personalizado && (
                     <span className="text-xs px-2 py-0.5 bg-stone-100 text-stone-600 rounded">
                       Personalizado
+                    </span>
+                  )}
+                  {paquete.estado === 'BORRADOR' && (
+                    <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded">
+                      Borrador
                     </span>
                   )}
                   {paquete.estado === 'ARCHIVADO' && (
