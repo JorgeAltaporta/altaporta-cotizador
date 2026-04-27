@@ -16,7 +16,7 @@ export default async function AdicionalesPage() {
   const [adicionalesResp, categoriasResp, zonasResp] = await Promise.all([
     supabase.from('adicionales').select('*').order('nombre'),
     supabase.from('categorias_adicionales').select('*').order('orden'),
-    supabase.from('zonas').select('id, nombre').order('id'),
+    supabase.from('zonas').select('id, nombre').eq('estado', 'ACTIVO').order('id'),
   ])
 
   if (adicionalesResp.error) {
@@ -31,24 +31,14 @@ export default async function AdicionalesPage() {
         </Link>
       </div>
 
-      <div className="mb-10 flex items-start justify-between">
-        <div>
-          <div className="text-xs tracking-widest text-amber-700 uppercase mb-2">
-            Catálogo · Adicionales
-          </div>
-          <h1 className="font-serif text-4xl text-stone-900">
-            Adicionales
-          </h1>
+      <div className="mb-10">
+        <div className="text-xs tracking-widest text-amber-700 uppercase mb-2">
+          Catálogo · Adicionales
         </div>
-
-        {puedeEditar && (
-          <Link
-            href="/catalogo/adicionales/hora-extra"
-            className="text-sm bg-purple-100 hover:bg-purple-200 text-purple-700 px-4 py-2 rounded-lg transition"
-          >
-            ⏱️ Configurar Hora Extra
-          </Link>
-        )}
+        <h1 className="font-serif text-4xl text-stone-900">Adicionales</h1>
+        <p className="text-stone-600 mt-2">
+          Items extra que se pueden agregar a una cotización
+        </p>
       </div>
 
       <AdicionalesManager
