@@ -149,22 +149,28 @@ function CategoriaCard({
           >
             {categoria.icono}
           </button>
-          {showIconos && (
-            <div className="absolute top-12 left-0 z-10 bg-white border border-stone-200 rounded-lg shadow-lg p-2 grid grid-cols-5 gap-1">
-              {ICONOS_SUGERIDOS.map((ic) => (
-                <button
-                  key={ic}
-                  type="button"
-                  onClick={() => {
-                    onUpdate({ icono: ic })
-                    setShowIconos(false)
-                  }}
-                  className="w-9 h-9 hover:bg-stone-100 rounded flex items-center justify-center text-xl"
-                >
-                  {ic}
-                </button>
-              ))}
-            </div>
+         {showIconos && (
+            <>
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setShowIconos(false)}
+              />
+              <div className="absolute top-12 left-0 z-20 bg-white border border-stone-200 rounded-lg shadow-lg p-2 w-[260px] grid grid-cols-5 gap-1">
+                {ICONOS_SUGERIDOS.map((ic) => (
+                  <button
+                    key={ic}
+                    type="button"
+                    onClick={() => {
+                      onUpdate({ icono: ic })
+                      setShowIconos(false)
+                    }}
+                    className="w-11 h-11 hover:bg-stone-100 rounded flex items-center justify-center text-xl"
+                  >
+                    {ic}
+                  </button>
+                ))}
+              </div>
+            </>
           )}
         </div>
 
