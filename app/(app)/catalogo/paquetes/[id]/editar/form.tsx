@@ -4,6 +4,9 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import CategoriasEditor, { type Categoria } from './CategoriasEditor'
+import SlotsEditor, { type Slot } from './SlotsEditor'
+import PermisosEditor from './PermisosEditor'
 
 type Rango = {
   id: string
@@ -21,8 +24,18 @@ type Paquete = {
   base_min_pax: number
   anticipo_pct: number
   precios: number[]
+  categorias: Categoria[] | null
+  proteina_slots: Slot[] | null
+  zonas_permitidas: string[] | null
+  adicionales_permitidos: string[] | null
   estado: string
 }
+
+type Proteina = { id: string; nombre: string; nivel_id: string | null }
+type Nivel = { id: string; nombre: string; color: string | null; orden: number }
+type Zona = { id: string; nombre: string; color: string | null }
+type Adicional = { id: string; nombre: string; categoria_id: string | null }
+type CatAd = { id: string; nombre: string; icono: string | null; orden: number }
 
 const COLORES_SUGERIDOS = [
   '#F4A78F',
@@ -38,24 +51,45 @@ const COLORES_SUGERIDOS = [
 export default function EditarPaqueteForm({
   paquete,
   rangos,
+  proteinas,
+  niveles,
+  zonas,
+  adicionales,
+  categorias: categoriasAdicionales,
 }: {
   paquete: Paquete
   rangos: Rango[]
+  proteinas: Proteina[]
+  niveles: Nivel[]
+  zonas: Zona[]
+  adicionales: Adicional[]
+  categorias: CatAd[]
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null)
 
+  // Información general
   const [nombre, setNombre] = useState(paquete.nombre)
   const [descripcion, setDescripcion] = useState(paquete.descripcion || '')
   const [color, setColor] = useState(paquete.color || '#E7E5E4')
   const [horas, setHoras] = useState(paquete.horas_servicio)
   const [pax, setPax] = useState(paquete.base_min_pax)
   const [anticipo, setAnticipo] = useState(paquete.anticipo_pct)
+  const [estado, setEstado] = useState(paquete.estado)
+
+  // Precios
   const [precios, setPrecios] = useState<number[]>(
     rangos.map((_, i) => paquete.precios?.[i] || 0)
   )
-  const [estado, setEstado] = useState(paquete.estado)
+
+  // Componentes complejos
+  const [categorias, setCategorias] = useState<Categoria[]>(paquete.categorias || [])
+  const [slots, setSlots] = useState<Slot[]>(paquete.proteina_slots || [])
+  const [zonasPermitidas, setZonasPermitidas] = useState<string[]>(paquete.zonas_permitidas || [])
+  const [adicionalesPermitidos, setAdicionalesPermitidos] = useState<string[]>(
+    paquete.adicionales_permitidos || []
+  )
 
   function actualizarPrecio(idx: number, valor: number) {
     const nuevos = [...precios]
@@ -77,6 +111,10 @@ export default function EditarPaqueteForm({
           base_min_pax: pax,
           anticipo_pct: anticipo,
           precios,
+          categorias,
+          proteina_slots: slots,
+          zonas_permitidas: zonasPermitidas,
+          adicionales_permitidos: adicionalesPermitidos,
           estado,
         })
         .eq('id', paquete.id)
@@ -93,6 +131,7 @@ export default function EditarPaqueteForm({
 
   return (
     <div className="space-y-6">
+      {/* INFORMACIÓN GENERAL */}
       <section className="bg-white rounded-2xl border border-stone-200 p-6">
         <h2 className="font-serif text-xl text-stone-900 mb-4">Información general</h2>
 
@@ -139,7 +178,6 @@ export default function EditarPaqueteForm({
                   onClick={() => setColor(c)}
                   className="w-8 h-8 rounded border border-stone-200 hover:scale-110 transition"
                   style={{ backgroundColor: c }}
-                  title={c}
                 />
               ))}
             </div>
@@ -195,6 +233,7 @@ export default function EditarPaqueteForm({
         </div>
       </section>
 
+      {/* PRECIOS */}
       <section className="bg-white rounded-2xl border border-stone-200 p-6">
         <h2 className="font-serif text-xl text-stone-900 mb-1">Precios por rango de pax</h2>
         <p className="text-sm text-stone-500 mb-4">Costo por persona</p>
@@ -218,7 +257,48 @@ export default function EditarPaqueteForm({
         </div>
       </section>
 
-      <div className="flex items-center justify-between">
+      {/* CATEGORÍAS Y ATRIBUTOS */}
+      <section className="bg-white rounded-2xl border border-stone-200 p-6">
+        <h2 className="font-serif text-xl text-stone-900 mb-1">Contenido del paquete</h2>
+        <p className="text-sm text-stone-500 mb-4">
+          Categorías y atributos que aparecen en el PDF de la cotización
+        </p>
+        <CategoriasEditor categorias={categorias} onChange={setCategorias} />
+      </section>
+
+      {/* SLOTS DE PROTEÍNA */}
+      <section className="bg-white rounded-2xl border border-stone-200 p-6">
+        <h2 className="font-serif text-xl text-stone-900 mb-1">Slots de proteína</h2>
+        <p className="text-sm text-stone-500 mb-4">
+          Cómo se reparten las proteínas en el menú (deben sumar 100%)
+        </p>
+        <SlotsEditor
+          slots={slots}
+          proteinas={proteinas}
+          niveles={niveles}
+          onChange={setSlots}
+        />
+      </section>
+
+      {/* PERMISOS */}
+      <section className="bg-white rounded-2xl border border-stone-200 p-6">
+        <h2 className="font-serif text-xl text-stone-900 mb-1">Restricciones</h2>
+        <p className="text-sm text-stone-500 mb-4">
+          ¿En qué zonas y con qué adicionales se puede usar este paquete?
+        </p>
+        <PermisosEditor
+          zonasPermitidas={zonasPermitidas}
+          adicionalesPermitidos={adicionalesPermitidos}
+          todasLasZonas={zonas}
+          todosLosAdicionales={adicionales}
+          categorias={categoriasAdicionales}
+          onChangeZonas={setZonasPermitidas}
+          onChangeAdicionales={setAdicionalesPermitidos}
+        />
+      </section>
+
+      {/* BOTONES */}
+      <div className="flex items-center justify-between sticky bottom-4 bg-white rounded-2xl border border-stone-200 p-4 shadow-lg">
         <Link href="/catalogo/paquetes" className="text-sm text-stone-600 hover:text-stone-900">
           Cancelar
         </Link>
@@ -233,10 +313,10 @@ export default function EditarPaqueteForm({
 
       {mensaje && (
         <div
-          className={`p-3 rounded-lg text-sm ${
+          className={`fixed top-6 right-6 z-50 p-3 rounded-lg text-sm shadow-lg ${
             mensaje.tipo === 'ok'
-              ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
-              : 'bg-rose-50 border border-rose-200 text-rose-700'
+              ? 'bg-emerald-600 text-white'
+              : 'bg-rose-600 text-white'
           }`}
         >
           {mensaje.texto}
