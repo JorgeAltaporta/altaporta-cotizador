@@ -9,6 +9,8 @@ import NumberInput from '@/app/components/NumberInput'
 type Rango = {
   id: string
   nombre: string
+  min_pax: number
+  max_pax: number | null
 }
 
 type Locacion = {
@@ -21,20 +23,20 @@ type Zona = {
   nombre: string
   descripcion: string | null
   color: string | null
-  locaciones: Locacion[] | null
-  precios_flete: number[] | null
+  locaciones: Locacion[]
+  precios_flete: number[]
   estado: string
 }
 
 const COLORES_SUGERIDOS = [
-  '#10B981', // verde
-  '#F59E0B', // ámbar
-  '#F97316', // naranja
-  '#EF4444', // rojo
-  '#8B5CF6', // morado
-  '#3B82F6', // azul
-  '#EC4899', // rosa
-  '#A8A29E', // gris
+  '#10B981',
+  '#F59E0B',
+  '#F97316',
+  '#EF4444',
+  '#8B5CF6',
+  '#3B82F6',
+  '#EC4899',
+  '#A8A29E',
 ]
 
 export default function EditarZonaForm({
@@ -53,27 +55,30 @@ export default function EditarZonaForm({
   const [color, setColor] = useState(zona.color || '#A8A29E')
   const [estado, setEstado] = useState(zona.estado)
   const [locaciones, setLocaciones] = useState<Locacion[]>(zona.locaciones || [])
-  const [nuevaLocacion, setNuevaLocacion] = useState('')
   const [fletes, setFletes] = useState<number[]>(
     rangos.map((_, i) => zona.precios_flete?.[i] || 0)
   )
-
-  function agregarLocacion() {
-    const nombre = nuevaLocacion.trim()
-    if (!nombre) return
-    const nuevoId = `loc_${Date.now()}`
-    setLocaciones([...locaciones, { id: nuevoId, nombre }])
-    setNuevaLocacion('')
-  }
-
-  function quitarLocacion(id: string) {
-    setLocaciones(locaciones.filter((l) => l.id !== id))
-  }
 
   function actualizarFlete(idx: number, valor: number) {
     const nuevos = [...fletes]
     nuevos[idx] = valor
     setFletes(nuevos)
+  }
+
+  function agregarLocacion() {
+    const nueva: Locacion = {
+      id: `loc_${Date.now()}`,
+      nombre: 'Nueva locación',
+    }
+    setLocaciones([...locaciones, nueva])
+  }
+
+  function actualizarLocacion(id: string, nombre: string) {
+    setLocaciones(locaciones.map((l) => (l.id === id ? { ...l, nombre } : l)))
+  }
+
+  function eliminarLocacion(id: string) {
+    setLocaciones(locaciones.filter((l) => l.id !== id))
   }
 
   async function handleGuardar() {
@@ -104,6 +109,7 @@ export default function EditarZonaForm({
 
   return (
     <div className="space-y-6">
+      {/* INFORMACIÓN GENERAL */}
       <section className="bg-white rounded-2xl border border-stone-200 p-6">
         <h2 className="font-serif text-xl text-stone-900 mb-4">Información general</h2>
 
@@ -129,12 +135,32 @@ export default function EditarZonaForm({
           </div>
 
           <div>
+            <label className="block text-sm text-stone-700 mb-1.5">Estado</label>
+            <select
+              value={estado}
+              onChange={(e) => setEstado(e.target.value)}
+              className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
+            >
+              <option value="ACTIVO">Activo</option>
+              <option value="ARCHIVADO">Archivado</option>
+              <option value="BORRADOR">Borrador</option>
+            </select>
+            {estado === 'ARCHIVADO' && (
+              <p className="text-xs text-stone-500 mt-1">
+                ⚠️ Las zonas archivadas no aparecen en cotizaciones nuevas.
+              </p>
+            )}
+          </div>
+
+          <div>
             <label className="block text-sm text-stone-700 mb-1.5">Color</label>
             <div className="flex items-center gap-2">
               <div
-                className="w-12 h-12 rounded-lg border border-stone-200"
+                className="w-12 h-12 rounded-lg border border-stone-200 flex items-center justify-center text-white font-medium"
                 style={{ backgroundColor: color }}
-              />
+              >
+                {zona.id}
+              </div>
               <input
                 type="text"
                 value={color}
@@ -150,84 +176,67 @@ export default function EditarZonaForm({
                   onClick={() => setColor(c)}
                   className="w-8 h-8 rounded border border-stone-200 hover:scale-110 transition"
                   style={{ backgroundColor: c }}
-                  title={c}
                 />
               ))}
             </div>
           </div>
-
-          <div>
-            <label className="block text-sm text-stone-700 mb-1.5">Estado</label>
-            <select
-              value={estado}
-              onChange={(e) => setEstado(e.target.value)}
-              className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
-            >
-              <option value="ACTIVO">Activo</option>
-              <option value="ARCHIVADO">Archivado</option>
-              <option value="BORRADOR">Borrador</option>
-            </select>
-          </div>
         </div>
       </section>
 
-      {/* Locaciones */}
+      {/* LOCACIONES */}
       <section className="bg-white rounded-2xl border border-stone-200 p-6">
-        <h2 className="font-serif text-xl text-stone-900 mb-1">Locaciones</h2>
-        <p className="text-sm text-stone-500 mb-4">
-          Lugares específicos que pertenecen a esta zona
-        </p>
-
-        <div className="space-y-2 mb-4">
-          {locaciones.map((loc) => (
-            <div
-              key={loc.id}
-              className="flex items-center gap-2 bg-stone-50 px-3 py-2 rounded-lg"
-            >
-              <span className="flex-1 text-stone-900">{loc.nombre}</span>
-              <button
-                type="button"
-                onClick={() => quitarLocacion(loc.id)}
-                className="text-rose-600 hover:text-rose-800 text-sm"
-              >
-                Quitar
-              </button>
-            </div>
-          ))}
-          {locaciones.length === 0 && (
-            <p className="text-sm text-stone-400 italic">Sin locaciones aún</p>
-          )}
-        </div>
-
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={nuevaLocacion}
-            onChange={(e) => setNuevaLocacion(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), agregarLocacion())}
-            placeholder="Nombre de la locación"
-            className="flex-1 px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
-          />
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="font-serif text-xl text-stone-900">Locaciones</h2>
+            <p className="text-sm text-stone-500">Lugares específicos dentro de esta zona</p>
+          </div>
           <button
             type="button"
             onClick={agregarLocacion}
-            className="bg-stone-100 hover:bg-stone-200 text-stone-700 px-4 py-2 rounded-lg transition"
+            className="text-sm text-amber-700 hover:bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-300"
           >
-            Agregar
+            + Agregar
           </button>
+        </div>
+
+        <div className="space-y-2">
+          {locaciones.map((loc) => (
+            <div key={loc.id} className="flex gap-2 items-center">
+              <input
+                type="text"
+                value={loc.nombre}
+                onChange={(e) => actualizarLocacion(loc.id, e.target.value)}
+                className="flex-1 px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
+              />
+              <button
+                type="button"
+                onClick={() => eliminarLocacion(loc.id)}
+                className="p-2 text-rose-500 hover:text-rose-700"
+                title="Eliminar"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+
+          {locaciones.length === 0 && (
+            <div className="text-sm text-stone-400 py-3 italic text-center">
+              Sin locaciones. Agrega al menos una.
+            </div>
+          )}
         </div>
       </section>
 
-      {/* Precios de flete */}
+      {/* FLETES POR RANGO */}
       <section className="bg-white rounded-2xl border border-stone-200 p-6">
-        <h2 className="font-serif text-xl text-stone-900 mb-1">Precios de flete por rango</h2>
-        <p className="text-sm text-stone-500 mb-4">Costo por persona</p>
+        <h2 className="font-serif text-xl text-stone-900 mb-1">Precios de flete por rango de pax</h2>
+        <p className="text-sm text-stone-500 mb-4">Costo por persona (multiplicado por número de invitados)</p>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {rangos.map((rango, idx) => (
             <div key={rango.id}>
               <label className="block text-xs text-stone-600 mb-1">{rango.nombre} pax</label>
-             <div className="relative">
+              <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-500">$</span>
                 <NumberInput
                   value={fletes[idx] || 0}
@@ -240,7 +249,8 @@ export default function EditarZonaForm({
         </div>
       </section>
 
-      <div className="flex items-center justify-between">
+      {/* BOTONES */}
+      <div className="flex items-center justify-between sticky bottom-4 bg-white rounded-2xl border border-stone-200 p-4 shadow-lg">
         <Link href="/catalogo/zonas" className="text-sm text-stone-600 hover:text-stone-900">
           Cancelar
         </Link>
@@ -255,10 +265,10 @@ export default function EditarZonaForm({
 
       {mensaje && (
         <div
-          className={`p-3 rounded-lg text-sm ${
+          className={`fixed top-6 right-6 z-50 p-3 rounded-lg text-sm shadow-lg ${
             mensaje.tipo === 'ok'
-              ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
-              : 'bg-rose-50 border border-rose-200 text-rose-700'
+              ? 'bg-emerald-600 text-white'
+              : 'bg-rose-600 text-white'
           }`}
         >
           {mensaje.texto}
