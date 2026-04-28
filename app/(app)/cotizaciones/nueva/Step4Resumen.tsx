@@ -2,9 +2,9 @@
 
 import type {
   EventoForm,
-  AdicionalSeleccionado,
   Paquete,
   Zona,
+  Rango,
 } from './Step1Datos'
 import type { Step3Data } from './Step3Ajustes'
 
@@ -44,6 +44,7 @@ export default function Step4Resumen({
   eventos,
   paquetes,
   zonas,
+  rangos,
   adicionales,
   ajustes,
   subtotalEventos,
@@ -64,6 +65,7 @@ export default function Step4Resumen({
   eventos: EventoForm[]
   paquetes: PaqueteConCategorias[]
   zonas: Zona[]
+  rangos: Rango[]
   adicionales: Adicional[]
   ajustes: Step3Data
   subtotalEventos: number
@@ -80,6 +82,17 @@ export default function Step4Resumen({
       return { nombre: 'Hora extra', unidad: 'hora' }
     }
     return adicionales.find((a) => a.id === adicionalId) || null
+  }
+
+  function rangoIndexPara(pax: number): number {
+    if (pax <= 0) return -1
+    for (let i = 0; i < rangos.length; i++) {
+      const r = rangos[i]
+      if (pax >= r.min_pax && (r.max_pax === null || pax <= r.max_pax)) {
+        return i
+      }
+    }
+    return -1
   }
 
   return (
@@ -127,10 +140,21 @@ export default function Step4Resumen({
             )
           )
 
+        const rangoIdx = rangoIndexPara(evt.pax)
+        const precioPorPax =
+          paquete && rangoIdx !== -1 ? paquete.precios[rangoIdx] || 0 : 0
+        const fletePerPax =
+          zona && rangoIdx !== -1
+            ? zona.precios_flete[rangoIdx] || 0
+            : 0
+        const subtotalPaquete = precioPorPax * evt.pax
+        const flete = fletePerPax * evt.pax
         const subtotalAdicionales = evt.adicionales.reduce(
           (s, a) => s + a.cantidad * a.precioUnitario,
           0
         )
+        const totalEvento = subtotalPaquete + flete + subtotalAdicionales
+        const precioPorPaxConFlete = precioPorPax + fletePerPax
 
         return (
           <section
@@ -209,66 +233,60 @@ export default function Step4Resumen({
               </div>
             )}
 
-            {/* Adicionales agregados */}
-            {evt.adicionales.length > 0 && (
-              <div className="border-t border-stone-100 pt-4 mt-4">
-                <div className="text-xs uppercase tracking-wider text-stone-700 mb-2">
-                  Adicionales
-                </div>
-                <div className="space-y-1.5 text-sm">
-                  {evt.adicionales.map((sel) => {
-                    const ad = getDatosAdicional(sel.adicionalId)
-                    if (!ad) return null
-                    const subtotal = sel.cantidad * sel.precioUnitario
-                    const esCortesia = sel.precioUnitario === 0
-                    return (
-                      <div key={sel.id} className="flex justify-between">
-                        <span className="text-stone-700">
-                          {ad.nombre} · {sel.cantidad} {ad.unidad || 'u'}
-                          {!esCortesia &&
-                            ` × $${sel.precioUnitario.toLocaleString('es-MX')}`}
-                          {esCortesia && (
-                            <span className="ml-2 text-xs text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded">
-                              🎁 Cortesía
-                            </span>
-                          )}
-                        </span>
-                        <span className="font-medium text-stone-900">
-                          ${subtotal.toLocaleString('es-MX')}
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
+            {/* Desglose de precios */}
+            <div className="border-t border-stone-100 pt-4 space-y-2 text-sm">
+              {/* Paquete con flete sumado */}
+              <div className="flex justify-between">
+                <span className="text-stone-700">
+                  {paquete?.nombre || 'Paquete'} · {evt.pax} pax × ${precioPorPaxConFlete.toLocaleString('es-MX', { maximumFractionDigits: 2 })}
+                </span>
+                <span className="font-medium text-stone-900">
+                  ${(subtotalPaquete + flete).toLocaleString('es-MX')}
+                </span>
               </div>
-            )}
+
+              {evt.adicionales.map((sel) => {
+                const ad = getDatosAdicional(sel.adicionalId)
+                if (!ad) return null
+                const subtotal = sel.cantidad * sel.precioUnitario
+                const esCortesia = sel.precioUnitario === 0
+                return (
+                  <div key={sel.id} className="flex justify-between">
+                    <span className="text-stone-700">
+                      {ad.nombre} · {sel.cantidad} {ad.unidad || 'u'}
+                      {!esCortesia &&
+                        ` × $${sel.precioUnitario.toLocaleString('es-MX')}`}
+                      {esCortesia && (
+                        <span className="ml-2 text-xs text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded">
+                          🎁 Cortesía
+                        </span>
+                      )}
+                    </span>
+                    <span className="font-medium text-stone-900">
+                      ${subtotal.toLocaleString('es-MX')}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
 
             {/* Total del evento */}
             <div className="bg-stone-900 text-stone-50 rounded-lg p-4 mt-4">
               <div className="flex items-baseline justify-between">
                 <div>
                   <div className="text-xs uppercase tracking-wider text-amber-300 mb-1">
-                    Subtotal del evento
+                    Inversión por persona
                   </div>
-                  <div className="text-xs text-amber-300/70">
-                    {evt.pax} pax × ${(evt.pax > 0
-                      ? ((paquete?.precios[
-                          paquete.precios.findIndex((_, i) => {
-                            return i === 0 // approximation, actual rangoIdx ya viene calculado afuera
-                          })
-                        ] || 0) +
-                          (subtotalAdicionales / evt.pax))
-                      : 0
-                    ).toLocaleString('es-MX', { maximumFractionDigits: 2 })}
+                  <div className="font-serif text-2xl">
+                    ${precioPorPaxConFlete.toLocaleString('es-MX', { maximumFractionDigits: 2 })}
                   </div>
                 </div>
                 <div className="text-right">
+                  <div className="text-xs uppercase tracking-wider text-amber-300 mb-1">
+                    Subtotal del evento
+                  </div>
                   <div className="font-serif text-2xl">
-                    $
-                    {(
-                      // calcular el total real del evento (paquete + flete + adicionales)
-                      0
-                    ).toLocaleString('es-MX')}
+                    ${totalEvento.toLocaleString('es-MX')}
                   </div>
                 </div>
               </div>
@@ -364,7 +382,6 @@ export default function Step4Resumen({
           </div>
         </div>
 
-        {/* Comisión interna (solo si hay) */}
         {comisionPct > 0 && (
           <div className="mt-3 text-xs text-stone-500 text-right">
             Comisión WP {comisionPct}%: $
@@ -408,7 +425,6 @@ export default function Step4Resumen({
         </ul>
       </section>
 
-      {/* NOTAS PARA EL CLIENTE */}
       {notasCliente && (
         <section className="bg-stone-50 rounded-2xl border border-stone-200 p-6">
           <h3 className="font-medium text-stone-900 mb-2">Notas para el cliente</h3>
