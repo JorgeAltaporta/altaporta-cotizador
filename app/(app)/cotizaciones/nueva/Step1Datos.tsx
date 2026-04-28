@@ -23,6 +23,7 @@ export type Paquete = {
   base_min_pax: number
   precios: number[]
   zonas_permitidas: string[] | null
+  adicionales_permitidos: string[] | null
   es_personalizado: boolean
 }
 
