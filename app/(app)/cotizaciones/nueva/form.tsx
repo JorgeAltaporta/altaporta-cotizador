@@ -254,4 +254,327 @@ export default function WizardCotizacionForm({
   }
 
   async function generarFolio(supabase: ReturnType<typeof createClient>): Promise<string> {
-    const año = new Date().getFull
+    const año = new Date().getFullYear()
+    const prefijo = `AP-${año}-`
+    const { data: rows } = await supabase
+      .from('cotizaciones')
+      .select('folio')
+      .like('folio', `${prefijo}%`)
+      .order('folio', { ascending: false })
+      .limit(1)
+    let siguiente = 1
+    if (rows && rows.length > 0 && rows[0].folio) {
+      const ultimoNumero = parseInt(rows[0].folio.split('-')[2])
+      if (!isNaN(ultimoNumero)) siguiente = ultimoNumero + 1
+    }
+    return `${prefijo}${String(siguiente).padStart(3, '0')}`
+  }
+
+  async function handleCrear() {
+    setError(null)
+    const errVal = validarStep1()
+    if (errVal) {
+      setError(errVal)
+      setStep(1)
+      return
+    }
+
+    startTransition(async () => {
+      const supabase = createClient()
+
+      for (let i = 0; i < data.eventos.length; i++) {
+        const evt = data.eventos[i]
+        const ec = eventosConCalculo[i]
+        if (ec.locacionEsNueva && (evt.zonaIdManual || ec.zonaAuto?.id)) {
+          const zonaIdDestino = evt.zonaIdManual || ec.zonaAuto?.id
+          const zonaActualizar = zonas.find((z) => z.id === zonaIdDestino)
+          if (zonaActualizar) {
+            const yaExiste = (zonaActualizar.locaciones || []).some(
+              (l) => l.nombre.toLowerCase() === evt.locacionTexto.trim().toLowerCase()
+            )
+            if (!yaExiste) {
+              const nuevaLocacion = {
+                id: `loc_${Date.now()}_${i}`,
+                nombre: evt.locacionTexto.trim(),
+                estado: usuario.puede_aprobar ? 'ACTIVA' : 'PENDIENTE',
+                creado_por: usuario.id,
+              }
+              await supabase
+                .from('zonas')
+                .update({
+                  locaciones: [...(zonaActualizar.locaciones || []), nuevaLocacion],
+                })
+                .eq('id', zonaActualizar.id)
+            }
+          }
+        }
+      }
+
+      const folio = await generarFolio(supabase)
+
+      const eventosParaGuardar = data.eventos.map((evt, i) => {
+        const ec = eventosConCalculo[i]
+        const zonaIdFinal = evt.zonaIdManual || ec.zonaAuto?.id || ''
+        const locacionMatch = todasLasLocaciones.find(
+          (l) => l.nombre.toLowerCase() === evt.locacionTexto.toLowerCase()
+        )
+
+        return {
+          id: evt.id,
+          fecha: evt.fecha,
+          zona_id: zonaIdFinal,
+          locacion_id: locacionMatch?.id || null,
+          locacion_texto: evt.locacionTexto.trim(),
+          pax: evt.pax,
+          paquete_id: evt.paqueteId,
+          rango_index: ec.rangoIdx,
+          precio_por_pax: ec.precioPorPax,
+          subtotal_paquete: ec.subtotalPaquete,
+          flete: ec.flete,
+          adicionales: evt.adicionales || [],
+          subtotal_adicionales: ec.subtotalAdicionales,
+          total: ec.total,
+          proteinas_seleccionadas: [],
+        }
+      })
+
+      const { data: insertData, error: errSupabase } = await supabase
+        .from('cotizaciones')
+        .insert({
+          folio,
+          etiqueta: etiqueta || null,
+          cliente_nombre: data.clienteNombre.trim(),
+          notas_internas: data.notasInternas.trim() || null,
+          notas_cliente: ajustes.notasCliente.trim() || null,
+          estado: usuario.puede_aprobar ? 'BORRADOR' : 'PENDIENTE',
+          ejecutivo_id: data.ejecutivoId || null,
+          wp_id: data.wpId === 'WP-DIRECTO' ? null : data.wpId,
+          comision_override: data.comisionOverride,
+          comision_ejecutivo_override: ajustes.comisionEjecutivoOverride,
+          descuento_general: ajustes.descuentoGeneral,
+          cargos_extra: ajustes.cargosExtra,
+          vigencia_dias: ajustes.vigenciaDias,
+          anticipo_pct_override: ajustes.anticipoPctOverride,
+          aplica_iva: ajustes.aplicaIva,
+          eventos: eventosParaGuardar,
+          adicionales_globales: [],
+          historial: [
+            {
+              accion: 'CREADA',
+              usuario_id: usuario.id,
+              usuario_nombre: usuario.nombre,
+              fecha: new Date().toISOString(),
+            },
+          ],
+        })
+        .select()
+        .single()
+
+      if (errSupabase) {
+        setError(`Error: ${errSupabase.message}`)
+        return
+      }
+
+      router.push(`/cotizaciones/${insertData.id}`)
+      router.refresh()
+    })
+  }
+
+  const resumenEvento = useMemo(() => {
+    if (totalGeneral === 0 && subtotalEventos === 0) return undefined
+    if (data.eventos.length === 1) {
+      const e = eventosConCalculo[0]
+      const fletePorPax = e.evt.pax > 0 ? e.flete / e.evt.pax : 0
+      const precioPorPaxConFlete = e.precioPorPax + fletePorPax
+      const subtotalPaqueteConFlete = e.subtotalPaquete + e.flete
+      return {
+        nombre: 'Evento',
+        pax: e.evt.pax,
+        paqueteNombre: e.paqueteSel?.nombre,
+        zonaNombre: e.zonaActiva
+          ? `Zona ${e.zonaActiva.id} · ${e.zonaActiva.nombre}`
+          : undefined,
+        precioPorPaxConFlete,
+        subtotalPaqueteConFlete,
+        subtotalAdicionales:
+          e.subtotalAdicionales - descuentoAplicado + totalCargosExtra + iva,
+        total: totalGeneral,
+      }
+    }
+    return {
+      nombre: `${data.eventos.length} eventos`,
+      pax: data.eventos.reduce((s, e) => s + e.pax, 0),
+      paqueteNombre: 'Múltiples',
+      total: totalGeneral,
+    }
+  }, [
+    data.eventos,
+    eventosConCalculo,
+    totalGeneral,
+    descuentoAplicado,
+    totalCargosExtra,
+    iva,
+    subtotalEventos,
+  ])
+
+  return (
+    <div>
+      <div className="mb-8">
+        <Stepper step={step} enabledSteps={[1, 2, 3, 4]} onStepChange={irStep} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="lg:col-span-2 space-y-6">
+          {step === 1 && (
+            <Step1Datos
+              data={data}
+              onChange={actualizarData}
+              usuario={usuario}
+              paquetes={paquetes}
+              zonas={zonas}
+              rangos={rangos}
+              weddingPlanners={weddingPlanners}
+              ejecutivos={ejecutivos}
+            />
+          )}
+
+          {step === 2 && (
+            <Step2Adicionales
+              eventos={data.eventos}
+              onChange={actualizarEventos}
+              adicionales={adicionales}
+              categorias={categorias}
+              zonas={zonas}
+              rangos={rangos}
+              paquetes={paquetes}
+              usuarioId={usuario.id}
+            />
+          )}
+
+          {step === 3 && (
+            <Step3Ajustes
+              data={ajustes}
+              onChange={actualizarAjustes}
+              subtotalEventos={subtotalEventos}
+              comisionEjecutivoDefault={comisionEjecutivoDefault}
+              ejecutivoNombre={ejecutivoNombre}
+              puedeAprobar={usuario.puede_aprobar}
+              anticipoPctDefault={clausulasGlobales.anticipoPct}
+            />
+          )}
+
+          {step === 4 && (
+            <Step4Resumen
+              clienteNombre={data.clienteNombre}
+              etiqueta={etiqueta}
+              wpNombre={wp?.nombre}
+              ejecutivoNombre={ejecutivoNombre}
+              comisionPct={comisionPct}
+              notasCliente={ajustes.notasCliente}
+              eventos={data.eventos}
+              paquetes={paquetes}
+              zonas={zonas}
+              rangos={rangos}
+              adicionales={adicionales}
+              ajustes={ajustes}
+              subtotalEventos={subtotalEventos}
+              descuentoAplicado={descuentoAplicado}
+              totalCargosExtra={totalCargosExtra}
+              iva={iva}
+              totalGeneral={totalGeneral}
+              anticipoPct={anticipoPct}
+              anticipoMonto={anticipoMonto}
+              clausulas={clausulasGlobales}
+            />
+          )}
+
+          {error && (
+            <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div className="lg:col-span-1">
+          <div className="lg:sticky lg:top-6 space-y-4">
+            <ResumenVivo
+              clienteNombre={data.clienteNombre || undefined}
+              etiqueta={etiqueta}
+              wpNombre={wp?.nombre}
+              comisionPct={comisionPct}
+              evento={resumenEvento}
+            />
+
+            {step === 1 && (
+              <button
+                onClick={() => irStep(2)}
+                className="w-full bg-stone-900 hover:bg-stone-800 text-white px-6 py-2.5 rounded-lg transition font-medium"
+              >
+                Siguiente: Adicionales →
+              </button>
+            )}
+
+            {step === 2 && (
+              <div className="space-y-2">
+                <button
+                  onClick={() => irStep(3)}
+                  className="w-full bg-stone-900 hover:bg-stone-800 text-white px-6 py-2.5 rounded-lg transition font-medium"
+                >
+                  Siguiente: Ajustes →
+                </button>
+                <button
+                  onClick={() => irStep(1)}
+                  className="w-full border border-stone-300 hover:bg-stone-50 text-stone-700 px-6 py-2 rounded-lg transition text-sm"
+                >
+                  ← Anterior
+                </button>
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className="space-y-2">
+                <button
+                  onClick={() => irStep(4)}
+                  className="w-full bg-stone-900 hover:bg-stone-800 text-white px-6 py-2.5 rounded-lg transition font-medium"
+                >
+                  Siguiente: Resumen →
+                </button>
+                <button
+                  onClick={() => irStep(2)}
+                  className="w-full border border-stone-300 hover:bg-stone-50 text-stone-700 px-6 py-2 rounded-lg transition text-sm"
+                >
+                  ← Anterior
+                </button>
+              </div>
+            )}
+
+            {step === 4 && (
+              <div className="space-y-2">
+                <button
+                  onClick={handleCrear}
+                  disabled={isPending}
+                  className="w-full bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white px-6 py-2.5 rounded-lg transition font-medium"
+                >
+                  {isPending ? 'Creando...' : 'Crear cotización'}
+                </button>
+                <button
+                  onClick={() => irStep(3)}
+                  className="w-full border border-stone-300 hover:bg-stone-50 text-stone-700 px-6 py-2 rounded-lg transition text-sm"
+                >
+                  ← Anterior
+                </button>
+              </div>
+            )}
+
+            <Link
+              href="/cotizaciones"
+              className="block text-center text-sm text-stone-600 hover:text-stone-900"
+            >
+              Cancelar
+            </Link>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
