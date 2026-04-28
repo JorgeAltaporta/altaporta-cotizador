@@ -46,7 +46,6 @@ export default function Step2Adicionales({
   paquetes: Paquete[]
   usuarioId: string
 }) {
-  // Lista local de adicionales (incluye los que se crean rápido)
   const [adicionalesLocal, setAdicionalesLocal] = useState<Adicional[]>(adicionales)
 
   function actualizarAdicionales(idxEvento: number, nuevos: AdicionalSeleccionado[]) {
@@ -125,7 +124,6 @@ function EventoAdicionales({
   const adicionalesDisponibles = adicionales.filter((a) => {
     if (a.estado !== 'ACTIVO' && a.estado !== 'PENDIENTE') return false
     if (paquete?.adicionales_permitidos && paquete.adicionales_permitidos.length > 0) {
-      // Permitir los PENDIENTES recién creados aunque no estén en adicionales_permitidos
       if (a.estado !== 'PENDIENTE' && !paquete.adicionales_permitidos.includes(a.id)) return false
     }
     if (busqueda.trim()) {
@@ -136,7 +134,7 @@ function EventoAdicionales({
     return true
   })
 
-  function getPrecio(adicional: Adicional): number {
+  function getPrecioSugerido(adicional: Adicional): number {
     if (
       zona &&
       adicional.precios_por_zona &&
@@ -156,7 +154,7 @@ function EventoAdicionales({
         )
       )
     } else {
-      const precio = getPrecio(adicional)
+      const precio = getPrecioSugerido(adicional)
       const cantidadInicial = adicional.unidad === 'pax' ? evento.pax : 1
       const nuevo: AdicionalSeleccionado = {
         id: `add_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -176,6 +174,14 @@ function EventoAdicionales({
     onUpdate(
       evento.adicionales.map((a) =>
         a.id === idAdic ? { ...a, cantidad } : a
+      )
+    )
+  }
+
+  function cambiarPrecio(idAdic: string, precioUnitario: number) {
+    onUpdate(
+      evento.adicionales.map((a) =>
+        a.id === idAdic ? { ...a, precioUnitario } : a
       )
     )
   }
@@ -212,50 +218,116 @@ function EventoAdicionales({
           {evento.adicionales.map((sel) => {
             const ad = adicionales.find((a) => a.id === sel.adicionalId)
             if (!ad) return null
+            const precioSugerido = getPrecioSugerido(ad)
             const subtotal = sel.cantidad * sel.precioUnitario
+            const esCortesia = sel.precioUnitario === 0
+            const esDescuento =
+              !esCortesia && sel.precioUnitario < precioSugerido
+            const esIncremento = sel.precioUnitario > precioSugerido
+            const diferencia = sel.precioUnitario - precioSugerido
 
             return (
               <div
                 key={sel.id}
-                className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-lg"
+                className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2"
               >
-                <div className="flex-1">
-                  <div className="text-sm font-medium text-stone-900">
-                    {ad.nombre}
-                    {ad.estado === 'PENDIENTE' && (
-                      <span className="ml-2 text-xs text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                        Pendiente aprobación
-                      </span>
-                    )}
+                {/* Línea 1: nombre, tags, eliminar */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium text-stone-900 flex items-center flex-wrap gap-2">
+                      {ad.nombre}
+                      {ad.estado === 'PENDIENTE' && (
+                        <span className="text-xs text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                          Pendiente aprobación
+                        </span>
+                      )}
+                      {esCortesia && (
+                        <span className="text-xs text-yellow-700 bg-yellow-100 border border-yellow-300 px-1.5 py-0.5 rounded font-medium">
+                          🎁 Cortesía
+                        </span>
+                      )}
+                      {esDescuento && (
+                        <span className="text-xs text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                          -${(precioSugerido - sel.precioUnitario).toLocaleString('es-MX')}
+                        </span>
+                      )}
+                      {esIncremento && (
+                        <span className="text-xs text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded">
+                          +${diferencia.toLocaleString('es-MX')}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-stone-500">
+                      Precio sugerido: ${precioSugerido.toLocaleString('es-MX')}
+                      {ad.unidad ? ` / ${ad.unidad}` : ''}
+                    </div>
                   </div>
-                  <div className="text-xs text-stone-500">
-                    ${sel.precioUnitario.toLocaleString('es-MX')} {ad.unidad ? `/ ${ad.unidad}` : ''}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => quitar(sel.id)}
+                    className="text-rose-500 hover:text-rose-700 text-sm flex-shrink-0"
+                    title="Quitar"
+                  >
+                    ✕
+                  </button>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <NumberInput
-                    value={sel.cantidad}
-                    onChange={(v) => cambiarCantidad(sel.id, v)}
-                    className="w-20 px-2 py-1 border border-stone-300 rounded text-sm text-center bg-white"
-                  />
-                  <span className="text-xs text-stone-500 w-8">{ad.unidad || 'u'}</span>
-                </div>
-
-                <div className="text-right w-24">
-                  <div className="font-medium text-stone-900 text-sm">
-                    ${subtotal.toLocaleString('es-MX')}
+                {/* Línea 2: precio editable, cantidad, subtotal */}
+                <div className="flex items-end gap-2 flex-wrap">
+                  <div className="flex-1 min-w-[100px]">
+                    <label className="block text-xs text-stone-600 mb-0.5">
+                      Precio aplicado
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <span className="text-stone-500 text-sm">$</span>
+                      <NumberInput
+                        value={sel.precioUnitario}
+                        onChange={(v) => cambiarPrecio(sel.id, v)}
+                        className="w-full px-2 py-1 border border-stone-300 rounded text-sm bg-white"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <button
-                  type="button"
-                  onClick={() => quitar(sel.id)}
-                  className="text-rose-500 hover:text-rose-700 text-sm w-6"
-                  title="Quitar"
-                >
-                  ✕
-                </button>
+                  <div className="flex-1 min-w-[80px]">
+                    <label className="block text-xs text-stone-600 mb-0.5">Cantidad</label>
+                    <div className="flex items-center gap-1">
+                      <NumberInput
+                        value={sel.cantidad}
+                        onChange={(v) => cambiarCantidad(sel.id, v)}
+                        className="w-full px-2 py-1 border border-stone-300 rounded text-sm bg-white"
+                      />
+                      <span className="text-xs text-stone-500">{ad.unidad || 'u'}</span>
+                    </div>
+                  </div>
+
+                  <div className="text-right min-w-[80px]">
+                    <div className="text-xs text-stone-500">Subtotal</div>
+                    <div className="font-medium text-stone-900 text-sm">
+                      ${subtotal.toLocaleString('es-MX')}
+                    </div>
+                  </div>
+
+                  {sel.precioUnitario > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => cambiarPrecio(sel.id, 0)}
+                      className="text-xs text-yellow-700 hover:text-yellow-900 underline"
+                      title="Marcar como cortesía"
+                    >
+                      Cortesía
+                    </button>
+                  )}
+                  {sel.precioUnitario !== precioSugerido && (
+                    <button
+                      type="button"
+                      onClick={() => cambiarPrecio(sel.id, precioSugerido)}
+                      className="text-xs text-stone-500 hover:text-stone-700 underline"
+                      title="Restaurar precio sugerido"
+                    >
+                      ↩ Restaurar
+                    </button>
+                  )}
+                </div>
               </div>
             )
           })}
@@ -337,14 +409,12 @@ function EventoAdicionales({
           <div className="max-h-96 overflow-y-auto space-y-1.5 mt-3 border border-stone-100 rounded-lg p-2">
             {adicionalesDisponibles.length === 0 ? (
               <div className="text-sm text-stone-400 italic text-center py-4">
-                {busqueda
-                  ? 'No hay coincidencias'
-                  : 'No hay adicionales disponibles'}
+                {busqueda ? 'No hay coincidencias' : 'No hay adicionales disponibles'}
               </div>
             ) : (
               adicionalesDisponibles.map((ad) => {
                 const yaAgregado = evento.adicionales.some((s) => s.adicionalId === ad.id)
-                const precio = getPrecio(ad)
+                const precio = getPrecioSugerido(ad)
 
                 return (
                   <button
