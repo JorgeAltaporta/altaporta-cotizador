@@ -1,5 +1,6 @@
 'use client'
 
+import { formatearFechaLarga } from '@/lib/fecha'
 import type {
   EventoForm,
   Paquete,
@@ -95,22 +96,13 @@ export default function Step4Resumen({
     return -1
   }
 
-  function formatearFechaCorta(fechaISO: string): string {
-    return new Date(fechaISO).toLocaleDateString('es-MX', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    })
-  }
-
-  // Fecha de creación (hoy, ya que la cotización aún no se guarda)
+  // Fecha de creación (hoy)
   const fechaCreacion = new Date().toLocaleDateString('es-MX', {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
   })
 
-  // Calcular para cada evento
   const eventosCalculados = eventos.map((evt) => {
     const paquete = paquetes.find((p) => p.id === evt.paqueteId)
     const zona =
@@ -167,7 +159,7 @@ export default function Step4Resumen({
         </div>
       </section>
 
-      {/* EVENTOS — descripción + banner oscuro con inversión por persona */}
+      {/* EVENTOS */}
       {eventosCalculados.map(({ evt, paquete, precioPorPaxConFlete }, idx) => (
         <section
           key={evt.id}
@@ -183,7 +175,7 @@ export default function Step4Resumen({
             </h3>
           </div>
           <p className="text-sm text-stone-500 italic mb-4">
-            {evt.fecha && formatearFechaCorta(evt.fecha)} · {evt.locacionTexto}
+            {evt.fecha && formatearFechaLarga(evt.fecha)} · {evt.locacionTexto}
           </p>
 
           <div className="grid grid-cols-2 gap-4 text-sm bg-stone-50 rounded-lg p-4 mb-4">
@@ -203,7 +195,6 @@ export default function Step4Resumen({
             </div>
           </div>
 
-          {/* Contenido del paquete por categorías */}
           {paquete?.categorias && paquete.categorias.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               {paquete.categorias
@@ -236,7 +227,6 @@ export default function Step4Resumen({
             </div>
           )}
 
-          {/* Banner oscuro con inversión por persona */}
           {precioPorPaxConFlete > 0 && (
             <div className="bg-stone-900 text-stone-50 rounded-lg p-5 mt-4">
               <div className="flex justify-between items-baseline">
@@ -252,7 +242,7 @@ export default function Step4Resumen({
         </section>
       ))}
 
-      {/* RESUMEN DE INVERSIÓN — desglosado por evento al final */}
+      {/* RESUMEN DE INVERSIÓN */}
       <section className="bg-white rounded-2xl border border-stone-200 p-6">
         <h3 className="font-serif text-xl text-stone-900 mb-4">
           Resumen de inversión
@@ -261,7 +251,6 @@ export default function Step4Resumen({
         <div className="space-y-5">
           {eventosCalculados.map((ec, idx) => (
             <div key={ec.evt.id}>
-              {/* Encabezado del día/evento */}
               <div className="border-b-2 border-stone-300 pb-2 mb-3">
                 <div className="text-xs uppercase tracking-widest text-amber-700 flex items-center gap-2">
                   <span className="font-mono bg-amber-50 px-2 py-0.5 rounded">
@@ -269,7 +258,7 @@ export default function Step4Resumen({
                   </span>
                   <span>
                     {eventos.length > 1 ? `Evento ${idx + 1}` : 'Evento'} ·{' '}
-                    {ec.evt.fecha && formatearFechaCorta(ec.evt.fecha)}
+                    {ec.evt.fecha && formatearFechaLarga(ec.evt.fecha)}
                   </span>
                 </div>
               </div>
@@ -314,7 +303,6 @@ export default function Step4Resumen({
             </div>
           ))}
 
-          {/* Totales generales */}
           <div className="border-t-2 border-stone-900 pt-4 space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-stone-700">Subtotal</span>
@@ -370,7 +358,6 @@ export default function Step4Resumen({
           </div>
         </div>
 
-        {/* Anticipo */}
         <div className="mt-6 bg-stone-900 text-stone-50 rounded-lg p-5">
           <div className="flex justify-between items-baseline">
             <div>
@@ -397,7 +384,6 @@ export default function Step4Resumen({
         )}
       </section>
 
-      {/* TÉRMINOS Y CONDICIONES */}
       <section className="bg-stone-50 rounded-2xl border border-stone-200 p-6">
         <h3 className="font-serif text-xl text-stone-900 mb-4">
           Términos y condiciones
