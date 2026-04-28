@@ -37,11 +37,7 @@ type Categoria = {
   orden: number
 }
 
-// Mapa de comisiones default por ejecutivo (basado en el sistema actual)
-const COMISION_EJECUTIVO_DEFAULT: Record<string, number> = {
-  // Por ahora, todos los ejecutivos tienen 1%
-  // Se puede cambiar a un campo en la tabla profiles después
-}
+const COMISION_EJECUTIVO_DEFAULT: Record<string, number> = {}
 
 export default function WizardCotizacionForm({
   usuario,
@@ -96,8 +92,6 @@ export default function WizardCotizacionForm({
     setAjustes({ ...ajustes, ...cambios })
   }
 
-  // ─────────────────────────────────────────────────────────────────
-  // Cálculos derivados
   // ─────────────────────────────────────────────────────────────────
   const todasLasLocaciones = useMemo(() => {
     const lista: Array<{ id: string; nombre: string; zonaId: string }> = []
@@ -175,7 +169,6 @@ export default function WizardCotizacionForm({
 
   const subtotalEventos = eventosConCalculo.reduce((sum, e) => sum + e.total, 0)
 
-  // Aplicar descuento general
   const descuentoAplicado = (() => {
     if (!ajustes.descuentoGeneral) return 0
     if (ajustes.descuentoGeneral.tipo === 'porcentaje') {
@@ -188,7 +181,6 @@ export default function WizardCotizacionForm({
 
   const totalGeneral = subtotalEventos - descuentoAplicado + totalCargosExtra
 
-  // Datos del ejecutivo
   const ejecutivoSeleccionado = ejecutivos.find((e) => e.id === data.ejecutivoId)
   const ejecutivoNombre = ejecutivoSeleccionado?.nombre ||
     (usuario.rol === 'EJECUTIVO' ? usuario.nombre : null)
@@ -259,7 +251,6 @@ export default function WizardCotizacionForm({
     startTransition(async () => {
       const supabase = createClient()
 
-      // Procesar locaciones nuevas
       for (let i = 0; i < data.eventos.length; i++) {
         const evt = data.eventos[i]
         const ec = eventosConCalculo[i]
@@ -355,10 +346,14 @@ export default function WizardCotizacionForm({
     })
   }
 
+  // RESUMEN VIVO con flete sumado al paquete
   const resumenEvento = useMemo(() => {
     if (totalGeneral === 0 && subtotalEventos === 0) return undefined
     if (data.eventos.length === 1) {
       const e = eventosConCalculo[0]
+      const fletePorPax = e.evt.pax > 0 ? e.flete / e.evt.pax : 0
+      const precioPorPaxConFlete = e.precioPorPax + fletePorPax
+      const subtotalPaqueteConFlete = e.subtotalPaquete + e.flete
       return {
         nombre: 'Evento',
         pax: e.evt.pax,
@@ -366,8 +361,9 @@ export default function WizardCotizacionForm({
         zonaNombre: e.zonaActiva
           ? `Zona ${e.zonaActiva.id} · ${e.zonaActiva.nombre}`
           : undefined,
-        subtotalPaquete: e.subtotalPaquete + e.subtotalAdicionales - descuentoAplicado + totalCargosExtra,
-        flete: e.flete,
+        precioPorPaxConFlete,
+        subtotalPaqueteConFlete,
+        subtotalAdicionales: e.subtotalAdicionales - descuentoAplicado + totalCargosExtra,
         total: totalGeneral,
       }
     }
@@ -381,7 +377,6 @@ export default function WizardCotizacionForm({
 
   return (
     <div>
-      {/* STEPPER */}
       <div className="mb-8">
         <Stepper
           step={step}
@@ -391,7 +386,6 @@ export default function WizardCotizacionForm({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* COLUMNA IZQUIERDA */}
         <div className="lg:col-span-2 space-y-6">
           {step === 1 && (
             <Step1Datos
@@ -436,7 +430,6 @@ export default function WizardCotizacionForm({
           )}
         </div>
 
-        {/* COLUMNA DERECHA */}
         <div className="lg:col-span-1">
           <div className="lg:sticky lg:top-6 space-y-4">
             <ResumenVivo
@@ -446,7 +439,6 @@ export default function WizardCotizacionForm({
               evento={resumenEvento}
             />
 
-            {/* Botones según paso */}
             {step === 1 && (
               <button
                 onClick={() => irStep(2)}
