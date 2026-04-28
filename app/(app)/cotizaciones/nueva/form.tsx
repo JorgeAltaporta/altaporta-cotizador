@@ -19,6 +19,7 @@ import Step1Datos, {
 } from './Step1Datos'
 import Step2Adicionales from './Step2Adicionales'
 import Step3Ajustes, { type Step3Data } from './Step3Ajustes'
+import Step4Resumen from './Step4Resumen'
 
 type Adicional = {
   id: string
@@ -201,7 +202,9 @@ export default function WizardCotizacionForm({
     (usuario.rol === 'EJECUTIVO' ? usuario.nombre : null)
   const comisionEjecutivoDefault = COMISION_EJECUTIVO_DEFAULT[data.ejecutivoId] ?? 1
 
-  // Etiqueta descriptiva en vivo
+  const anticipoPct = ajustes.anticipoPctOverride ?? clausulasGlobales.anticipoPct
+  const anticipoMonto = totalGeneral * (anticipoPct / 100)
+
   const etiqueta = useMemo(() => {
     return generarEtiqueta(
       data.eventos.map((e) => ({
@@ -417,7 +420,7 @@ export default function WizardCotizacionForm({
   return (
     <div>
       <div className="mb-8">
-        <Stepper step={step} enabledSteps={[1, 2, 3]} onStepChange={irStep} />
+        <Stepper step={step} enabledSteps={[1, 2, 3, 4]} onStepChange={irStep} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -457,6 +460,30 @@ export default function WizardCotizacionForm({
               ejecutivoNombre={ejecutivoNombre}
               puedeAprobar={usuario.puede_aprobar}
               anticipoPctDefault={clausulasGlobales.anticipoPct}
+            />
+          )}
+
+          {step === 4 && (
+            <Step4Resumen
+              clienteNombre={data.clienteNombre}
+              etiqueta={etiqueta}
+              wpNombre={wp?.nombre}
+              ejecutivoNombre={ejecutivoNombre}
+              comisionPct={comisionPct}
+              notasCliente={ajustes.notasCliente}
+              eventos={data.eventos}
+              paquetes={paquetes}
+              zonas={zonas}
+              adicionales={adicionales}
+              ajustes={ajustes}
+              subtotalEventos={subtotalEventos}
+              descuentoAplicado={descuentoAplicado}
+              totalCargosExtra={totalCargosExtra}
+              iva={iva}
+              totalGeneral={totalGeneral}
+              anticipoPct={anticipoPct}
+              anticipoMonto={anticipoMonto}
+              clausulas={clausulasGlobales}
             />
           )}
 
@@ -506,6 +533,23 @@ export default function WizardCotizacionForm({
             {step === 3 && (
               <div className="space-y-2">
                 <button
+                  onClick={() => irStep(4)}
+                  className="w-full bg-stone-900 hover:bg-stone-800 text-white px-6 py-2.5 rounded-lg transition font-medium"
+                >
+                  Siguiente: Resumen →
+                </button>
+                <button
+                  onClick={() => irStep(2)}
+                  className="w-full border border-stone-300 hover:bg-stone-50 text-stone-700 px-6 py-2 rounded-lg transition text-sm"
+                >
+                  ← Anterior
+                </button>
+              </div>
+            )}
+
+            {step === 4 && (
+              <div className="space-y-2">
+                <button
                   onClick={handleCrear}
                   disabled={isPending}
                   className="w-full bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white px-6 py-2.5 rounded-lg transition font-medium"
@@ -513,7 +557,7 @@ export default function WizardCotizacionForm({
                   {isPending ? 'Creando...' : 'Crear cotización'}
                 </button>
                 <button
-                  onClick={() => irStep(2)}
+                  onClick={() => irStep(3)}
                   className="w-full border border-stone-300 hover:bg-stone-50 text-stone-700 px-6 py-2 rounded-lg transition text-sm"
                 >
                   ← Anterior
