@@ -60,7 +60,6 @@ export default function WizardCotizacionForm({
   const [error, setError] = useState<string | null>(null)
   const [step, setStep] = useState(1)
 
-  // Estado del wizard
   const [data, setData] = useState<Step1Data>({
     clienteNombre: '',
     wpId: 'WP-DIRECTO',
@@ -111,7 +110,6 @@ export default function WizardCotizacionForm({
     return -1
   }
 
-  // Calcular cada evento (paquete + flete + adicionales)
   const eventosConCalculo = useMemo(() => {
     return data.eventos.map((evt) => {
       const zonaAuto = detectarZona(evt.locacionTexto)
@@ -158,7 +156,6 @@ export default function WizardCotizacionForm({
 
   const totalGeneral = eventosConCalculo.reduce((sum, e) => sum + e.total, 0)
 
-  // Validar Step 1
   function validarStep1(): string | null {
     if (!data.clienteNombre.trim()) {
       return 'El nombre del cliente o evento es obligatorio'
@@ -317,7 +314,6 @@ export default function WizardCotizacionForm({
     })
   }
 
-  // Resumen para sidebar
   const resumenEvento = useMemo(() => {
     if (totalGeneral === 0) return undefined
     if (data.eventos.length === 1) {
@@ -357,7 +353,7 @@ export default function WizardCotizacionForm({
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* COLUMNA IZQUIERDA — CONTENIDO DEL STEP */}
+        {/* COLUMNA IZQUIERDA */}
         <div className="lg:col-span-2 space-y-6">
           {step === 1 && (
             <Step1Datos
@@ -380,6 +376,7 @@ export default function WizardCotizacionForm({
               categorias={categorias}
               zonas={zonas}
               paquetes={paquetes}
+              usuarioId={usuario.id}
             />
           )}
 
@@ -390,7 +387,7 @@ export default function WizardCotizacionForm({
           )}
         </div>
 
-        {/* COLUMNA DERECHA — RESUMEN VIVO */}
+        {/* COLUMNA DERECHA */}
         <div className="lg:col-span-1">
           <div className="lg:sticky lg:top-6 space-y-4">
             <ResumenVivo
