@@ -20,6 +20,7 @@ export default async function NuevaCotizacionPage() {
     ejecutivosResp,
     adicionalesResp,
     categoriasResp,
+    clausulasResp,
   ] = await Promise.all([
     supabase.from('paquetes').select('*').eq('estado', 'ACTIVO').order('nombre'),
     supabase.from('zonas').select('*').eq('estado', 'ACTIVO').order('id'),
@@ -35,7 +36,21 @@ export default async function NuevaCotizacionPage() {
       .order('nombre'),
     supabase.from('adicionales').select('*').eq('estado', 'ACTIVO').order('nombre'),
     supabase.from('categorias_adicionales').select('*').order('orden'),
+    supabase.from('clausulas_globales').select('contenido').eq('id', 'global').single(),
   ])
+
+  // Cláusulas globales con defaults por si fallan
+  const clausulasGlobales = (clausulasResp.data?.contenido as {
+    anticipoPct: number
+    vigenciaDiasDefault: number
+    cambioFecha: string
+    instalaciones: string
+  }) || {
+    anticipoPct: 30,
+    vigenciaDiasDefault: 15,
+    cambioFecha: 'Se actualiza costo por persona',
+    instalaciones: 'Las proporciona el cliente',
+  }
 
   return (
     <div className="p-12 max-w-6xl">
@@ -51,7 +66,7 @@ export default async function NuevaCotizacionPage() {
         </div>
         <h1 className="font-serif text-4xl text-stone-900">Crear cotización</h1>
         <p className="text-stone-600 mt-2">
-          Llena los datos generales, eventos y adicionales.
+          Llena los datos generales, eventos, adicionales y ajustes.
         </p>
       </div>
 
@@ -64,6 +79,7 @@ export default async function NuevaCotizacionPage() {
         ejecutivos={ejecutivosResp.data || []}
         adicionales={adicionalesResp.data || []}
         categorias={categoriasResp.data || []}
+        clausulasGlobales={clausulasGlobales}
       />
     </div>
   )
