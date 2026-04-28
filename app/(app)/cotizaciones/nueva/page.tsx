@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-import NuevaCotizacionForm from './form'
+import WizardCotizacionForm from './form'
 
 export default async function NuevaCotizacionPage() {
   const supabase = await createClient()
@@ -12,22 +12,18 @@ export default async function NuevaCotizacionPage() {
     .eq('id', user!.id)
     .single()
 
-  // Cargar todo el catálogo necesario en paralelo
-  const [paquetesResp, zonasResp, rangosResp, wpsResp, ejecutivosResp] = await Promise.all([
-    supabase
-      .from('paquetes')
-      .select('*')
-      .eq('estado', 'ACTIVO')
-      .order('nombre'),
-    supabase
-      .from('zonas')
-      .select('*')
-      .eq('estado', 'ACTIVO')
-      .order('id'),
-    supabase
-      .from('rangos')
-      .select('*')
-      .order('orden'),
+  const [
+    paquetesResp,
+    zonasResp,
+    rangosResp,
+    wpsResp,
+    ejecutivosResp,
+    adicionalesResp,
+    categoriasResp,
+  ] = await Promise.all([
+    supabase.from('paquetes').select('*').eq('estado', 'ACTIVO').order('nombre'),
+    supabase.from('zonas').select('*').eq('estado', 'ACTIVO').order('id'),
+    supabase.from('rangos').select('*').order('orden'),
     supabase
       .from('wedding_planners')
       .select('id, nombre, contacto, comision_default')
@@ -37,10 +33,12 @@ export default async function NuevaCotizacionPage() {
       .select('id, nombre, rol, puede_aprobar')
       .eq('rol', 'EJECUTIVO')
       .order('nombre'),
+    supabase.from('adicionales').select('*').eq('estado', 'ACTIVO').order('nombre'),
+    supabase.from('categorias_adicionales').select('*').order('orden'),
   ])
 
   return (
-    <div className="p-12 max-w-4xl">
+    <div className="p-12 max-w-6xl">
       <div className="mb-8">
         <Link href="/cotizaciones" className="text-sm text-amber-700 hover:underline">
           ← Volver a cotizaciones
@@ -53,17 +51,19 @@ export default async function NuevaCotizacionPage() {
         </div>
         <h1 className="font-serif text-4xl text-stone-900">Crear cotización</h1>
         <p className="text-stone-600 mt-2">
-          Llena los datos generales y del primer evento.
+          Llena los datos generales, eventos y adicionales.
         </p>
       </div>
 
-      <NuevaCotizacionForm
+      <WizardCotizacionForm
         usuario={profile!}
         paquetes={paquetesResp.data || []}
         zonas={zonasResp.data || []}
         rangos={rangosResp.data || []}
         weddingPlanners={wpsResp.data || []}
         ejecutivos={ejecutivosResp.data || []}
+        adicionales={adicionalesResp.data || []}
+        categorias={categoriasResp.data || []}
       />
     </div>
   )
