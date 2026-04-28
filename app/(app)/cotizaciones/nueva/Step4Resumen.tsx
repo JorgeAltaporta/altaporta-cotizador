@@ -95,6 +95,35 @@ export default function Step4Resumen({
     return -1
   }
 
+  function formatearFechaCorta(fechaISO: string): string {
+    return new Date(fechaISO).toLocaleDateString('es-MX', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    })
+  }
+
+  // Calcular para cada evento
+  const eventosCalculados = eventos.map((evt) => {
+    const paquete = paquetes.find((p) => p.id === evt.paqueteId)
+    const zona =
+      zonas.find((z) => z.id === evt.zonaIdManual) ||
+      zonas.find((z) =>
+        (z.locaciones || []).some(
+          (l) => l.nombre.toLowerCase() === evt.locacionTexto.toLowerCase()
+        )
+      )
+    const rangoIdx = rangoIndexPara(evt.pax)
+    const precioPorPax =
+      paquete && rangoIdx !== -1 ? paquete.precios[rangoIdx] || 0 : 0
+    const fletePerPax =
+      zona && rangoIdx !== -1 ? zona.precios_flete[rangoIdx] || 0 : 0
+    const precioPorPaxConFlete = precioPorPax + fletePerPax
+    const subtotalPaqueteConFlete = precioPorPaxConFlete * evt.pax
+
+    return { evt, paquete, zona, precioPorPaxConFlete, subtotalPaqueteConFlete }
+  })
+
   return (
     <div className="space-y-6">
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-900">
@@ -113,8 +142,7 @@ export default function Step4Resumen({
         <div className="flex gap-4 text-sm text-stone-500 mt-3 flex-wrap">
           {ejecutivoNombre && (
             <span>
-              Ejecutivo:{' '}
-              <strong className="text-stone-700">{ejecutivoNombre}</strong>
+              Ejecutivo: <strong className="text-stone-700">{ejecutivoNombre}</strong>
             </span>
           )}
           {wpNombre && (
@@ -129,239 +157,184 @@ export default function Step4Resumen({
         </div>
       </section>
 
-      {/* EVENTOS */}
-      {eventos.map((evt, idx) => {
-        const paquete = paquetes.find((p) => p.id === evt.paqueteId)
-        const zona =
-          zonas.find((z) => z.id === evt.zonaIdManual) ||
-          zonas.find((z) =>
-            (z.locaciones || []).some(
-              (l) => l.nombre.toLowerCase() === evt.locacionTexto.toLowerCase()
-            )
-          )
+      {/* EVENTOS — solo descripción, sin precios y sin zona */}
+      {eventosCalculados.map(({ evt, paquete }, idx) => (
+        <section
+          key={evt.id}
+          className="bg-white rounded-2xl border border-stone-200 p-6"
+        >
+          <h3 className="font-serif text-xl text-stone-900 mb-1">
+            Evento {eventos.length > 1 ? idx + 1 : ''}
+            {paquete && ` · ${paquete.nombre}`}
+          </h3>
+          <p className="text-sm text-stone-500 italic mb-4">
+            {evt.fecha && formatearFechaCorta(evt.fecha)} · {evt.locacionTexto}
+          </p>
 
-        const rangoIdx = rangoIndexPara(evt.pax)
-        const precioPorPax =
-          paquete && rangoIdx !== -1 ? paquete.precios[rangoIdx] || 0 : 0
-        const fletePerPax =
-          zona && rangoIdx !== -1
-            ? zona.precios_flete[rangoIdx] || 0
-            : 0
-        const subtotalPaquete = precioPorPax * evt.pax
-        const flete = fletePerPax * evt.pax
-        const subtotalAdicionales = evt.adicionales.reduce(
-          (s, a) => s + a.cantidad * a.precioUnitario,
-          0
-        )
-        const totalEvento = subtotalPaquete + flete + subtotalAdicionales
-        const precioPorPaxConFlete = precioPorPax + fletePerPax
-
-        return (
-          <section
-            key={evt.id}
-            className="bg-white rounded-2xl border border-stone-200 p-6"
-          >
-            <h3 className="font-serif text-xl text-stone-900 mb-1">
-              Evento {eventos.length > 1 ? idx + 1 : ''}
-              {paquete && ` · ${paquete.nombre}`}
-            </h3>
-            <p className="text-sm text-stone-500 italic mb-4">
-              {evt.fecha &&
-                new Date(evt.fecha).toLocaleDateString('es-MX', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                })}{' '}
-              · {evt.locacionTexto}
-            </p>
-
-            <div className="grid grid-cols-3 gap-4 text-sm bg-stone-50 rounded-lg p-4 mb-4">
-              <div>
-                <div className="text-xs text-stone-500 uppercase tracking-wider mb-1">
-                  Invitados
-                </div>
-                <div className="text-stone-900 font-medium">{evt.pax} pax</div>
+          <div className="grid grid-cols-2 gap-4 text-sm bg-stone-50 rounded-lg p-4 mb-4">
+            <div>
+              <div className="text-xs text-stone-500 uppercase tracking-wider mb-1">
+                Invitados
               </div>
-              <div>
-                <div className="text-xs text-stone-500 uppercase tracking-wider mb-1">
-                  Servicio
-                </div>
-                <div className="text-stone-900 font-medium">
-                  {paquete?.horas_servicio ?? '—'} horas
-                </div>
+              <div className="text-stone-900 font-medium">{evt.pax} pax</div>
+            </div>
+            <div>
+              <div className="text-xs text-stone-500 uppercase tracking-wider mb-1">
+                Servicio
               </div>
-              <div>
-                <div className="text-xs text-stone-500 uppercase tracking-wider mb-1">
-                  Zona
-                </div>
-                <div className="text-stone-900 font-medium">
-                  {zona ? `${zona.id} · ${zona.nombre}` : '—'}
-                </div>
+              <div className="text-stone-900 font-medium">
+                {paquete?.horas_servicio ?? '—'} horas
               </div>
             </div>
+          </div>
 
-            {/* Contenido del paquete por categorías */}
-            {paquete?.categorias && paquete.categorias.length > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                {paquete.categorias
-                  .filter((c) => c.atributos && c.atributos.length > 0)
-                  .map((cat) => (
-                    <div key={cat.id} className="border-t border-amber-200 pt-3">
-                      <div className="text-xs uppercase tracking-wider text-amber-700 mb-2 flex items-center gap-1">
-                        <span>{cat.icono}</span>
-                        <span>{cat.nombre}</span>
-                      </div>
-                      <div className="space-y-2">
-                        {cat.atributos
-                          .filter(
-                            (a) =>
-                              a.valor &&
-                              a.valor !== 'No incluido' &&
-                              a.valor !== 'No incluida'
-                          )
-                          .map((attr) => (
-                            <div key={attr.id} className="text-sm">
-                              <div className="text-xs text-stone-500">
-                                {attr.nombre}
-                              </div>
-                              <div className="text-stone-900">{attr.valor}</div>
-                            </div>
-                          ))}
-                      </div>
+          {/* Contenido del paquete por categorías */}
+          {paquete?.categorias && paquete.categorias.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {paquete.categorias
+                .filter((c) => c.atributos && c.atributos.length > 0)
+                .map((cat) => (
+                  <div key={cat.id} className="border-t border-amber-200 pt-3">
+                    <div className="text-xs uppercase tracking-wider text-amber-700 mb-2 flex items-center gap-1">
+                      <span>{cat.icono}</span>
+                      <span>{cat.nombre}</span>
                     </div>
-                  ))}
-              </div>
-            )}
-
-            {/* Desglose de precios */}
-            <div className="border-t border-stone-100 pt-4 space-y-2 text-sm">
-              {/* Paquete con flete sumado */}
-              <div className="flex justify-between">
-                <span className="text-stone-700">
-                  {paquete?.nombre || 'Paquete'} · {evt.pax} pax × ${precioPorPaxConFlete.toLocaleString('es-MX', { maximumFractionDigits: 2 })}
-                </span>
-                <span className="font-medium text-stone-900">
-                  ${(subtotalPaquete + flete).toLocaleString('es-MX')}
-                </span>
-              </div>
-
-              {evt.adicionales.map((sel) => {
-                const ad = getDatosAdicional(sel.adicionalId)
-                if (!ad) return null
-                const subtotal = sel.cantidad * sel.precioUnitario
-                const esCortesia = sel.precioUnitario === 0
-                return (
-                  <div key={sel.id} className="flex justify-between">
-                    <span className="text-stone-700">
-                      {ad.nombre} · {sel.cantidad} {ad.unidad || 'u'}
-                      {!esCortesia &&
-                        ` × $${sel.precioUnitario.toLocaleString('es-MX')}`}
-                      {esCortesia && (
-                        <span className="ml-2 text-xs text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded">
-                          🎁 Cortesía
-                        </span>
-                      )}
-                    </span>
-                    <span className="font-medium text-stone-900">
-                      ${subtotal.toLocaleString('es-MX')}
-                    </span>
+                    <div className="space-y-2">
+                      {cat.atributos
+                        .filter(
+                          (a) =>
+                            a.valor &&
+                            a.valor !== 'No incluido' &&
+                            a.valor !== 'No incluida'
+                        )
+                        .map((attr) => (
+                          <div key={attr.id} className="text-sm">
+                            <div className="text-xs text-stone-500">
+                              {attr.nombre}
+                            </div>
+                            <div className="text-stone-900">{attr.valor}</div>
+                          </div>
+                        ))}
+                    </div>
                   </div>
-                )
-              })}
+                ))}
             </div>
+          )}
+        </section>
+      ))}
 
-            {/* Total del evento */}
-            <div className="bg-stone-900 text-stone-50 rounded-lg p-4 mt-4">
-              <div className="flex items-baseline justify-between">
-                <div>
-                  <div className="text-xs uppercase tracking-wider text-amber-300 mb-1">
-                    Inversión por persona
-                  </div>
-                  <div className="font-serif text-2xl">
-                    ${precioPorPaxConFlete.toLocaleString('es-MX', { maximumFractionDigits: 2 })}
-                  </div>
-                </div>
-                <div className="text-right">
-                  <div className="text-xs uppercase tracking-wider text-amber-300 mb-1">
-                    Subtotal del evento
-                  </div>
-                  <div className="font-serif text-2xl">
-                    ${totalEvento.toLocaleString('es-MX')}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-        )
-      })}
-
-      {/* RESUMEN DE INVERSIÓN */}
+      {/* RESUMEN DE INVERSIÓN — desglosado por evento al final */}
       <section className="bg-white rounded-2xl border border-stone-200 p-6">
         <h3 className="font-serif text-xl text-stone-900 mb-4">
           Resumen de inversión
         </h3>
 
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-stone-700">Subtotal eventos</span>
-            <span className="font-medium text-stone-900">
-              ${subtotalEventos.toLocaleString('es-MX')}
-            </span>
-          </div>
+        <div className="space-y-5">
+          {eventosCalculados.map((ec, idx) => (
+            <div key={ec.evt.id}>
+              {/* Encabezado del día/evento */}
+              <div className="border-b-2 border-stone-300 pb-2 mb-3">
+                <div className="text-xs uppercase tracking-widest text-amber-700">
+                  {eventos.length > 1 ? `Evento ${idx + 1}` : 'Evento'} ·{' '}
+                  {ec.evt.fecha && formatearFechaCorta(ec.evt.fecha)}
+                </div>
+              </div>
 
-          {ajustes.descuentoGeneral && (
-            <div className="flex justify-between text-emerald-700">
-              <span>
-                Descuento{' '}
-                {ajustes.descuentoGeneral.tipo === 'porcentaje'
-                  ? `${ajustes.descuentoGeneral.valor}%`
-                  : ''}
-                {ajustes.descuentoGeneral.concepto &&
-                  ` (${ajustes.descuentoGeneral.concepto})`}
-              </span>
-              <span className="font-medium">
-                −${descuentoAplicado.toLocaleString('es-MX')}
-              </span>
-            </div>
-          )}
+              <div className="space-y-1.5 text-sm">
+                {/* Paquete con flete sumado */}
+                <div className="flex justify-between">
+                  <span className="text-stone-700">
+                    {ec.paquete?.nombre || 'Paquete'} · {ec.evt.pax} pax × $
+                    {ec.precioPorPaxConFlete.toLocaleString('es-MX', {
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                  <span className="font-medium text-stone-900">
+                    ${ec.subtotalPaqueteConFlete.toLocaleString('es-MX')}
+                  </span>
+                </div>
 
-          {ajustes.cargosExtra.map((cargo) => (
-            <div key={cargo.id} className="flex justify-between">
-              <span className="text-stone-700">
-                {cargo.concepto || 'Cargo extra'}
-              </span>
-              <span className="font-medium text-stone-900">
-                ${cargo.monto.toLocaleString('es-MX')}
-              </span>
+                {/* Adicionales del evento */}
+                {ec.evt.adicionales.map((sel) => {
+                  const ad = getDatosAdicional(sel.adicionalId)
+                  if (!ad) return null
+                  const subtotal = sel.cantidad * sel.precioUnitario
+                  const esCortesia = sel.precioUnitario === 0
+                  return (
+                    <div key={sel.id} className="flex justify-between">
+                      <span className="text-stone-700">
+                        {ad.nombre} · {sel.cantidad} {ad.unidad || 'u'}
+                        {!esCortesia &&
+                          ` × $${sel.precioUnitario.toLocaleString('es-MX')}`}
+                        {esCortesia && (
+                          <span className="ml-2 text-xs text-yellow-700 bg-yellow-100 px-1.5 py-0.5 rounded">
+                            🎁 Cortesía
+                          </span>
+                        )}
+                      </span>
+                      <span className="font-medium text-stone-900">
+                        ${subtotal.toLocaleString('es-MX')}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
           ))}
 
-          {(ajustes.descuentoGeneral || ajustes.cargosExtra.length > 0) && (
-            <div className="flex justify-between border-t border-stone-100 pt-2">
-              <span className="text-stone-700">Subtotal ajustado</span>
-              <span className="font-medium text-stone-900">
-                $
-                {(subtotalEventos - descuentoAplicado + totalCargosExtra).toLocaleString(
-                  'es-MX'
-                )}
-              </span>
-            </div>
-          )}
-
-          {ajustes.aplicaIva && (
+          {/* Totales generales */}
+          <div className="border-t-2 border-stone-900 pt-4 space-y-2 text-sm">
             <div className="flex justify-between">
-              <span className="text-stone-700">IVA 16%</span>
+              <span className="text-stone-700">Subtotal</span>
               <span className="font-medium text-stone-900">
-                ${iva.toLocaleString('es-MX', { maximumFractionDigits: 2 })}
+                ${subtotalEventos.toLocaleString('es-MX')}
               </span>
             </div>
-          )}
 
-          <div className="border-t-2 border-stone-300 pt-2 mt-2 flex justify-between text-lg">
-            <span className="font-medium text-stone-900">Total</span>
-            <span className="font-serif text-stone-900">
-              ${totalGeneral.toLocaleString('es-MX', { maximumFractionDigits: 2 })}
-            </span>
+            {ajustes.descuentoGeneral && (
+              <div className="flex justify-between text-emerald-700">
+                <span>
+                  Descuento{' '}
+                  {ajustes.descuentoGeneral.tipo === 'porcentaje'
+                    ? `${ajustes.descuentoGeneral.valor}%`
+                    : ''}
+                  {ajustes.descuentoGeneral.concepto &&
+                    ` (${ajustes.descuentoGeneral.concepto})`}
+                </span>
+                <span className="font-medium">
+                  −${descuentoAplicado.toLocaleString('es-MX')}
+                </span>
+              </div>
+            )}
+
+            {ajustes.cargosExtra.map((cargo) => (
+              <div key={cargo.id} className="flex justify-between">
+                <span className="text-stone-700">
+                  {cargo.concepto || 'Cargo extra'}
+                </span>
+                <span className="font-medium text-stone-900">
+                  ${cargo.monto.toLocaleString('es-MX')}
+                </span>
+              </div>
+            ))}
+
+            {ajustes.aplicaIva && (
+              <div className="flex justify-between">
+                <span className="text-stone-700">IVA 16%</span>
+                <span className="font-medium text-stone-900">
+                  ${iva.toLocaleString('es-MX', { maximumFractionDigits: 2 })}
+                </span>
+              </div>
+            )}
+
+            <div className="border-t border-stone-300 pt-2 mt-2 flex justify-between text-lg">
+              <span className="font-medium text-stone-900 uppercase tracking-widest text-sm">
+                Total
+              </span>
+              <span className="font-serif text-2xl text-stone-900">
+                ${totalGeneral.toLocaleString('es-MX', { maximumFractionDigits: 2 })}
+              </span>
+            </div>
           </div>
         </div>
 
