@@ -6,7 +6,6 @@ import {
   Text,
   View,
   StyleSheet,
-  Font,
 } from '@react-pdf/renderer'
 
 const ID_HORA_EXTRA = '__HORA_EXTRA__'
@@ -114,7 +113,7 @@ function formatearFechaLarga(fechaISO: string): string {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// ESTILOS — paleta original Altaporta
+// ESTILOS
 // ─────────────────────────────────────────────────────────────────────
 const COLORES = {
   fondoOscuro: '#2a2520',
@@ -141,7 +140,7 @@ const styles = StyleSheet.create({
   // ─── Portada ───
   portadaHero: {
     backgroundColor: COLORES.fondoOscuro,
-    height: 510, // ~180mm
+    height: 510,
     padding: 70,
     position: 'relative',
   },
@@ -212,8 +211,7 @@ const styles = StyleSheet.create({
   portadaSubtitulo: {
     color: COLORES.dorado,
     fontSize: 12,
-    fontStyle: 'italic',
-    fontFamily: 'Times-Italic',
+    fontFamily: 'Times-Roman',
   },
 
   portadaInfo: {
@@ -290,7 +288,7 @@ const styles = StyleSheet.create({
   eventoSubtitulo: {
     fontSize: 11,
     color: COLORES.textoSecundario,
-    fontFamily: 'Times-Italic',
+    fontFamily: 'Times-Roman',
     marginBottom: 24,
   },
   metaRow: {
@@ -316,7 +314,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Times-Roman',
   },
 
-  // Categorías de paquete (3 columnas)
   catGrid: {
     flexDirection: 'row',
     gap: 12,
@@ -352,7 +349,6 @@ const styles = StyleSheet.create({
     lineHeight: 1.4,
   },
 
-  // Banner inversión
   bannerInversion: {
     backgroundColor: COLORES.fondoOscuro,
     color: COLORES.textoCrema,
@@ -373,7 +369,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Times-Roman',
   },
 
-  // ─── Resumen de inversión (tabla) ───
   resumenTitulo: {
     fontSize: 26,
     fontFamily: 'Times-Roman',
@@ -470,7 +465,6 @@ const styles = StyleSheet.create({
     color: COLORES.doradoOscuro,
   },
 
-  // Banner anticipo
   bannerAnticipo: {
     backgroundColor: COLORES.fondoOscuro,
     color: COLORES.textoCrema,
@@ -482,7 +476,6 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
 
-  // Términos
   terminosTitulo: {
     fontSize: 9,
     letterSpacing: 4,
@@ -506,7 +499,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Notas cliente
   notasCliente: {
     backgroundColor: COLORES.fondoCrema,
     padding: 16,
@@ -525,7 +517,6 @@ const styles = StyleSheet.create({
     lineHeight: 1.5,
   },
 
-  // Footer
   footerPagina: {
     position: 'absolute',
     bottom: 35,
@@ -541,9 +532,6 @@ const styles = StyleSheet.create({
   },
 })
 
-// ─────────────────────────────────────────────────────────────────────
-// COMPONENTES AUXILIARES
-// ─────────────────────────────────────────────────────────────────────
 const PageHeader = ({ folio, page }: { folio: string; page: string }) => (
   <View style={styles.pageHeader} fixed>
     <Text>
@@ -559,9 +547,6 @@ const PageFooter = () => (
   </Text>
 )
 
-// ─────────────────────────────────────────────────────────────────────
-// DOCUMENTO PRINCIPAL
-// ─────────────────────────────────────────────────────────────────────
 export default function PDFDocument({
   cotizacion,
   paquetes,
@@ -576,7 +561,6 @@ export default function PDFDocument({
   const c = cotizacion
   const eventos = c.eventos || []
 
-  // Helpers
   function getDatosAdicional(adicionalId: string) {
     if (adicionalId === ID_HORA_EXTRA) {
       return { nombre: 'Hora extra', unidad: 'hora' }
@@ -584,7 +568,6 @@ export default function PDFDocument({
     return adicionales.find((a) => a.id === adicionalId) || null
   }
 
-  // Cálculos
   const subtotalEventos = eventos.reduce((s, e) => s + (e.total || 0), 0)
   const descuentoAplicado = (() => {
     if (!c.descuento_general) return 0
@@ -603,7 +586,6 @@ export default function PDFDocument({
   const anticipoMonto = total * (anticipoPct / 100)
   const vigenciaDias = c.vigencia_dias ?? 15
 
-  // Fechas para portada
   const fechaEmision = c.fecha_creacion
     ? new Date(c.fecha_creacion).toLocaleDateString('es-MX', {
         day: 'numeric',
@@ -628,7 +610,6 @@ export default function PDFDocument({
 
   return (
     <Document>
-      {/* ════════════════ PÁGINA 1: PORTADA ════════════════ */}
       <Page size="A4" style={styles.page}>
         <View style={styles.portadaHero}>
           <View style={styles.portadaLogo}>
@@ -691,7 +672,6 @@ export default function PDFDocument({
         </View>
       </Page>
 
-      {/* ════════════════ PÁGINAS DE EVENTOS ════════════════ */}
       {eventos.map((evt, idx) => {
         const paquete = paquetes.find((p) => p.id === evt.paquete_id)
         const pax = evt.pax || 0
@@ -733,7 +713,6 @@ export default function PDFDocument({
               </View>
             </View>
 
-            {/* Contenido del paquete (3 columnas) */}
             {paquete?.categorias && paquete.categorias.length > 0 && (
               <View style={styles.catGrid}>
                 {(() => {
@@ -774,7 +753,6 @@ export default function PDFDocument({
               </View>
             )}
 
-            {/* Banner inversión */}
             <View style={styles.bannerInversion}>
               <View>
                 <Text style={styles.bannerLabel}>INVERSIÓN POR PERSONA</Text>
@@ -804,7 +782,6 @@ export default function PDFDocument({
         )
       })}
 
-      {/* ════════════════ PÁGINA: RESUMEN DE INVERSIÓN ════════════════ */}
       <Page size="A4" style={[styles.page, styles.pagina]}>
         <PageHeader folio={c.folio || ''} page="Resumen de inversión" />
 
@@ -835,7 +812,6 @@ export default function PDFDocument({
 
             return (
               <View key={evt.id || idx}>
-                {/* Línea principal del evento */}
                 <View style={styles.tablaRow}>
                   <View style={styles.tablaCol1}>
                     <Text style={styles.tablaConcepto}>
@@ -862,7 +838,6 @@ export default function PDFDocument({
                   </View>
                 </View>
 
-                {/* Adicionales */}
                 {(evt.adicionales || []).map((sel) => {
                   const ad = getDatosAdicional(sel.adicionalId)
                   if (!ad) return null
@@ -870,7 +845,7 @@ export default function PDFDocument({
                     <View key={sel.id} style={styles.tablaRowSub}>
                       <View style={styles.tablaCol1}>
                         <Text style={styles.tablaSubconcepto}>
-                          ↳ {ad.nombre}
+                          {'> '}{ad.nombre}
                         </Text>
                       </View>
                       <View style={styles.tablaCol2}>
@@ -895,7 +870,6 @@ export default function PDFDocument({
             )
           })}
 
-          {/* Cargos extra globales */}
           {cargosExtra.map((cargo) => (
             <View key={cargo.id} style={styles.tablaRow}>
               <View style={styles.tablaCol1}>
@@ -915,7 +889,6 @@ export default function PDFDocument({
             </View>
           ))}
 
-          {/* Descuento general */}
           {c.descuento_general && (
             <View style={styles.tablaRow}>
               <View style={styles.tablaCol1}>
@@ -942,7 +915,6 @@ export default function PDFDocument({
             </View>
           )}
 
-          {/* Subtotal */}
           <View style={styles.tablaSubtotal}>
             <View style={[styles.tablaCol1, styles.tablaCol2, styles.tablaCol3]}>
               <Text
@@ -961,7 +933,6 @@ export default function PDFDocument({
             </View>
           </View>
 
-          {/* IVA */}
           {aplicaIva && (
             <View style={styles.tablaTotalRow}>
               <View style={[styles.tablaCol1, styles.tablaCol2, styles.tablaCol3]}>
@@ -982,7 +953,6 @@ export default function PDFDocument({
             </View>
           )}
 
-          {/* Total */}
           <View style={styles.tablaTotalRow}>
             <View style={[styles.tablaCol1, styles.tablaCol2, styles.tablaCol3]}>
               <Text
@@ -997,20 +967,16 @@ export default function PDFDocument({
           </View>
         </View>
 
-        {/* Banner anticipo */}
         <View style={styles.bannerAnticipo}>
           <View>
             <Text style={styles.bannerLabel}>ANTICIPO PARA APARTAR FECHA</Text>
-            <Text
-              style={[styles.bannerLabel, { fontSize: 9, marginTop: 4 }]}
-            >
+            <Text style={[styles.bannerLabel, { fontSize: 9, marginTop: 4 }]}>
               {anticipoPct}% del total
             </Text>
           </View>
           <Text style={styles.bannerValor}>{formatMXN(anticipoMonto)}</Text>
         </View>
 
-        {/* Notas para el cliente */}
         {c.notas_cliente && (
           <View style={styles.notasCliente}>
             <Text style={styles.notasTitulo}>NOTAS PARA EL CLIENTE</Text>
@@ -1021,7 +987,6 @@ export default function PDFDocument({
         <PageFooter />
       </Page>
 
-      {/* ════════════════ PÁGINA FINAL: TÉRMINOS Y CONDICIONES ════════════════ */}
       <Page size="A4" style={[styles.page, styles.pagina]}>
         <PageHeader folio={c.folio || ''} page="Términos y condiciones" />
 
@@ -1031,7 +996,7 @@ export default function PDFDocument({
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 24 }}>
           {adicionales
             .filter((a) => a.estado === 'ACTIVO')
-            .slice(0, 30) // limitar para no desbordar
+            .slice(0, 30)
             .map((ad) => (
               <View
                 key={ad.id}
@@ -1062,7 +1027,6 @@ export default function PDFDocument({
                     style={{
                       fontSize: 8,
                       color: COLORES.textoSecundario,
-                      fontStyle: 'italic',
                       marginTop: 2,
                     }}
                   >
