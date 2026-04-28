@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { generarEtiqueta } from '@/lib/etiqueta-cotizacion'
+import { construirSnapshot } from '@/lib/snapshot-cotizacion'
 import Stepper from '../Stepper'
 import ResumenVivo from '../ResumenVivo'
 import Step1Datos, {
@@ -338,6 +339,47 @@ export default function WizardCotizacionForm({
         }
       })
 
+      // ── Snapshot de Fase G ─────────────────────────────────────────────
+      // Congela el estado del catálogo para que la cotización entregada al
+      // cliente nunca cambie aunque Jorge edite el catálogo después.
+      const wpSeleccionado = weddingPlanners.find((w) => w.id === data.wpId)
+      const ejecutivoSel = ejecutivos.find((e) => e.id === data.ejecutivoId)
+
+      const snapshot = construirSnapshot({
+        eventos: eventosParaGuardar,
+        paquetes: paquetes.map((p) => ({
+          id: p.id,
+          nombre: p.nombre,
+          color: p.color,
+          descripcion: p.descripcion,
+          horas_servicio: p.horas_servicio,
+          categorias: p.categorias,
+        })),
+        zonas: zonas.map((z) => ({
+          id: z.id,
+          nombre: z.nombre,
+          color: z.color,
+        })),
+        adicionales: adicionales.map((a) => ({
+          id: a.id,
+          nombre: a.nombre,
+          unidad: a.unidad,
+          notas: a.notas,
+        })),
+        clausulas: clausulasGlobales,
+        wp:
+          wpSeleccionado && data.wpId !== 'WP-DIRECTO'
+            ? {
+                id: wpSeleccionado.id,
+                nombre: wpSeleccionado.nombre,
+                contacto: wpSeleccionado.contacto,
+              }
+            : null,
+        ejecutivo: ejecutivoSel
+          ? { id: ejecutivoSel.id, nombre: ejecutivoSel.nombre }
+          : null,
+      })
+
       const { data: insertData, error: errSupabase } = await supabase
         .from('cotizaciones')
         .insert({
@@ -358,6 +400,7 @@ export default function WizardCotizacionForm({
           aplica_iva: ajustes.aplicaIva,
           eventos: eventosParaGuardar,
           adicionales_globales: [],
+          snapshot,
           historial: [
             {
               accion: 'CREADA',
