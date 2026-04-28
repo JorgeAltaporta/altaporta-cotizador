@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import NumberInput from '@/app/components/NumberInput'
 import { createClient } from '@/lib/supabase/client'
-import type { EventoForm, AdicionalSeleccionado, Zona } from './Step1Datos'
+import type { EventoForm, AdicionalSeleccionado, Zona, Rango } from './Step1Datos'
 
 type Adicional = {
   id: string
@@ -29,12 +29,16 @@ type Paquete = {
   adicionales_permitidos: string[] | null
 }
 
+// ID especial para identificar el adicional virtual de "Hora extra"
+const ID_HORA_EXTRA = '__HORA_EXTRA__'
+
 export default function Step2Adicionales({
   eventos,
   onChange,
   adicionales,
   categorias,
   zonas,
+  rangos,
   paquetes,
   usuarioId,
 }: {
@@ -43,6 +47,7 @@ export default function Step2Adicionales({
   adicionales: Adicional[]
   categorias: Categoria[]
   zonas: Zona[]
+  rangos: Rango[]
   paquetes: Paquete[]
   usuarioId: string
 }) {
@@ -60,6 +65,17 @@ export default function Step2Adicionales({
     setAdicionalesLocal([...adicionalesLocal, nuevo])
   }
 
+  function rangoIndexPara(pax: number): number {
+    if (pax <= 0) return -1
+    for (let i = 0; i < rangos.length; i++) {
+      const r = rangos[i]
+      if (pax >= r.min_pax && (r.max_pax === null || pax <= r.max_pax)) {
+        return i
+      }
+    }
+    return -1
+  }
+
   return (
     <div className="space-y-6">
       {eventos.map((evt, idx) => {
@@ -72,6 +88,11 @@ export default function Step2Adicionales({
           )
 
         const paquete = paquetes.find((p) => p.id === evt.paqueteId)
+        const rangoIdx = rangoIndexPara(evt.pax)
+        const precioHoraExtra =
+          zona && rangoIdx !== -1
+            ? zona.precios_hora_extra?.[rangoIdx] || 0
+            : 0
 
         return (
           <EventoAdicionales
@@ -84,6 +105,8 @@ export default function Step2Adicionales({
             adicionales={adicionalesLocal}
             categorias={categorias}
             usuarioId={usuarioId}
+            precioHoraExtra={precioHoraExtra}
+            rangoNombre={rangoIdx !== -1 ? rangos[rangoIdx].nombre : null}
             onUpdate={(nuevos) => actualizarAdicionales(idx, nuevos)}
             onAdicionalCreado={agregarAdicionalAlCatalogo}
           />
@@ -102,6 +125,8 @@ function EventoAdicionales({
   adicionales,
   categorias,
   usuarioId,
+  precioHoraExtra,
+  rangoNombre,
   onUpdate,
   onAdicionalCreado,
 }: {
@@ -113,6 +138,8 @@ function EventoAdicionales({
   adicionales: Adicional[]
   categorias: Categoria[]
   usuarioId: string
+  precioHoraExtra: number
+  rangoNombre: string | null
   onUpdate: (nuevos: AdicionalSeleccionado[]) => void
   onAdicionalCreado: (nuevo: Adicional) => void
 }) {
@@ -133,6 +160,13 @@ function EventoAdicionales({
     if (categoriaActiva !== 'TODAS' && a.categoria_id !== categoriaActiva) return false
     return true
   })
+
+  // Mostrar "Hora extra" si está en categoría Horas extra o Todas, y la búsqueda matchea
+  const mostrarHoraExtra =
+    precioHoraExtra > 0 &&
+    zona &&
+    (categoriaActiva === 'TODAS' || categoriaActiva === 'cat_tiempo') &&
+    (busqueda.trim() === '' || 'hora extra'.includes(busqueda.toLowerCase()))
 
   function getPrecioSugerido(adicional: Adicional): number {
     if (
@@ -166,6 +200,25 @@ function EventoAdicionales({
     }
   }
 
+  function agregarHoraExtra() {
+    const yaEsta = evento.adicionales.find((a) => a.adicionalId === ID_HORA_EXTRA)
+    if (yaEsta) {
+      onUpdate(
+        evento.adicionales.map((a) =>
+          a.adicionalId === ID_HORA_EXTRA ? { ...a, cantidad: a.cantidad + 1 } : a
+        )
+      )
+    } else {
+      const nuevo: AdicionalSeleccionado = {
+        id: `add_he_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        adicionalId: ID_HORA_EXTRA,
+        cantidad: 1,
+        precioUnitario: precioHoraExtra,
+      }
+      onUpdate([...evento.adicionales, nuevo])
+    }
+  }
+
   function quitar(idAdic: string) {
     onUpdate(evento.adicionales.filter((a) => a.id !== idAdic))
   }
@@ -186,6 +239,26 @@ function EventoAdicionales({
     )
   }
 
+  // Función helper: obtener nombre/unidad/precioSugerido del adicional
+  function getDatosAdicional(adicionalId: string) {
+    if (adicionalId === ID_HORA_EXTRA) {
+      return {
+        nombre: 'Hora extra',
+        unidad: 'hora',
+        precioSugerido: precioHoraExtra,
+        estado: 'ACTIVO',
+      }
+    }
+    const ad = adicionales.find((a) => a.id === adicionalId)
+    if (!ad) return null
+    return {
+      nombre: ad.nombre,
+      unidad: ad.unidad,
+      precioSugerido: getPrecioSugerido(ad),
+      estado: ad.estado,
+    }
+  }
+
   const totalAdicionales = evento.adicionales.reduce(
     (sum, a) => sum + a.cantidad * a.precioUnitario,
     0
@@ -193,7 +266,6 @@ function EventoAdicionales({
 
   return (
     <section className="bg-white rounded-2xl border border-stone-200 p-6">
-      {/* Header del evento */}
       <div className="flex items-start justify-between mb-4 pb-4 border-b border-stone-100">
         <div>
           <h3 className="font-serif text-lg text-stone-900">
@@ -216,27 +288,30 @@ function EventoAdicionales({
         <div className="space-y-2 mb-6">
           <h4 className="text-sm font-medium text-stone-700">Agregados</h4>
           {evento.adicionales.map((sel) => {
-            const ad = adicionales.find((a) => a.id === sel.adicionalId)
-            if (!ad) return null
-            const precioSugerido = getPrecioSugerido(ad)
+            const datos = getDatosAdicional(sel.adicionalId)
+            if (!datos) return null
             const subtotal = sel.cantidad * sel.precioUnitario
             const esCortesia = sel.precioUnitario === 0
-            const esDescuento =
-              !esCortesia && sel.precioUnitario < precioSugerido
-            const esIncremento = sel.precioUnitario > precioSugerido
-            const diferencia = sel.precioUnitario - precioSugerido
+            const esDescuento = !esCortesia && sel.precioUnitario < datos.precioSugerido
+            const esIncremento = sel.precioUnitario > datos.precioSugerido
+            const diferencia = sel.precioUnitario - datos.precioSugerido
+            const esHoraExtra = sel.adicionalId === ID_HORA_EXTRA
 
             return (
               <div
                 key={sel.id}
                 className="p-3 bg-amber-50 border border-amber-200 rounded-lg space-y-2"
               >
-                {/* Línea 1: nombre, tags, eliminar */}
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium text-stone-900 flex items-center flex-wrap gap-2">
-                      {ad.nombre}
-                      {ad.estado === 'PENDIENTE' && (
+                      {datos.nombre}
+                      {esHoraExtra && (
+                        <span className="text-xs text-stone-700 bg-stone-100 px-1.5 py-0.5 rounded">
+                          ⏱️ Zona {zona?.id} · {rangoNombre}
+                        </span>
+                      )}
+                      {datos.estado === 'PENDIENTE' && (
                         <span className="text-xs text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
                           Pendiente aprobación
                         </span>
@@ -248,7 +323,7 @@ function EventoAdicionales({
                       )}
                       {esDescuento && (
                         <span className="text-xs text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                          -${(precioSugerido - sel.precioUnitario).toLocaleString('es-MX')}
+                          -${(datos.precioSugerido - sel.precioUnitario).toLocaleString('es-MX')}
                         </span>
                       )}
                       {esIncremento && (
@@ -258,8 +333,8 @@ function EventoAdicionales({
                       )}
                     </div>
                     <div className="text-xs text-stone-500">
-                      Precio sugerido: ${precioSugerido.toLocaleString('es-MX')}
-                      {ad.unidad ? ` / ${ad.unidad}` : ''}
+                      Precio sugerido: ${datos.precioSugerido.toLocaleString('es-MX')}
+                      {datos.unidad ? ` / ${datos.unidad}` : ''}
                     </div>
                   </div>
                   <button
@@ -272,7 +347,6 @@ function EventoAdicionales({
                   </button>
                 </div>
 
-                {/* Línea 2: precio editable, cantidad, subtotal */}
                 <div className="flex items-end gap-2 flex-wrap">
                   <div className="flex-1 min-w-[100px]">
                     <label className="block text-xs text-stone-600 mb-0.5">
@@ -296,7 +370,7 @@ function EventoAdicionales({
                         onChange={(v) => cambiarCantidad(sel.id, v)}
                         className="w-full px-2 py-1 border border-stone-300 rounded text-sm bg-white"
                       />
-                      <span className="text-xs text-stone-500">{ad.unidad || 'u'}</span>
+                      <span className="text-xs text-stone-500">{datos.unidad || 'u'}</span>
                     </div>
                   </div>
 
@@ -312,17 +386,15 @@ function EventoAdicionales({
                       type="button"
                       onClick={() => cambiarPrecio(sel.id, 0)}
                       className="text-xs text-yellow-700 hover:text-yellow-900 underline"
-                      title="Marcar como cortesía"
                     >
                       Cortesía
                     </button>
                   )}
-                  {sel.precioUnitario !== precioSugerido && (
+                  {sel.precioUnitario !== datos.precioSugerido && (
                     <button
                       type="button"
-                      onClick={() => cambiarPrecio(sel.id, precioSugerido)}
+                      onClick={() => cambiarPrecio(sel.id, datos.precioSugerido)}
                       className="text-xs text-stone-500 hover:text-stone-700 underline"
-                      title="Restaurar precio sugerido"
                     >
                       ↩ Restaurar
                     </button>
@@ -334,7 +406,7 @@ function EventoAdicionales({
         </div>
       )}
 
-      {/* Botones de acción */}
+      {/* Botones */}
       <div className="flex gap-2 mb-3">
         <button
           type="button"
@@ -352,7 +424,6 @@ function EventoAdicionales({
         </button>
       </div>
 
-      {/* Mini-form crear adicional rápido */}
       {crearOpen && (
         <FormCrearRapido
           categorias={categorias}
@@ -366,7 +437,6 @@ function EventoAdicionales({
         />
       )}
 
-      {/* Catálogo (colapsable) */}
       {catalogoAbierto && (
         <div className="space-y-3 mt-4 border-t border-stone-100 pt-4">
           <input
@@ -407,7 +477,38 @@ function EventoAdicionales({
           </div>
 
           <div className="max-h-96 overflow-y-auto space-y-1.5 mt-3 border border-stone-100 rounded-lg p-2">
-            {adicionalesDisponibles.length === 0 ? (
+            {/* Item especial: Hora extra */}
+            {mostrarHoraExtra && (
+              <button
+                type="button"
+                onClick={agregarHoraExtra}
+                className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-stone-50 transition text-left bg-stone-50/50"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-stone-900 flex items-center gap-2">
+                    <span>⏱️</span>
+                    <span className="font-medium">Hora extra</span>
+                    {evento.adicionales.some((s) => s.adicionalId === ID_HORA_EXTRA) && (
+                      <span className="text-xs text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                        ✓ Agregado
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-stone-500">
+                    Zona {zona?.id} · {rangoNombre} pax · Servicio extra
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div className="text-sm font-medium text-stone-900">
+                    ${precioHoraExtra.toLocaleString('es-MX')}
+                  </div>
+                  <div className="text-xs text-stone-500">/ hora</div>
+                </div>
+                <span className="text-amber-700 text-lg">+</span>
+              </button>
+            )}
+
+            {adicionalesDisponibles.length === 0 && !mostrarHoraExtra ? (
               <div className="text-sm text-stone-400 italic text-center py-4">
                 {busqueda ? 'No hay coincidencias' : 'No hay adicionales disponibles'}
               </div>
@@ -456,9 +557,7 @@ function EventoAdicionales({
   )
 }
 
-// ────────────────────────────────────────────────────────────────────────
-// Mini-form para crear adicional rápido (queda como PENDIENTE)
-// ────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────
 function FormCrearRapido({
   categorias,
   usuarioId,
