@@ -20,6 +20,8 @@ export type Step3Data = {
   comisionEjecutivoOverride: number | null
   notasCliente: string
   vigenciaDias: number
+  anticipoPctOverride: number | null
+  aplicaIva: boolean
 }
 
 export default function Step3Ajustes({
@@ -29,6 +31,7 @@ export default function Step3Ajustes({
   comisionEjecutivoDefault,
   ejecutivoNombre,
   puedeAprobar,
+  anticipoPctDefault,
 }: {
   data: Step3Data
   onChange: (cambios: Partial<Step3Data>) => void
@@ -36,8 +39,8 @@ export default function Step3Ajustes({
   comisionEjecutivoDefault: number
   ejecutivoNombre: string | null
   puedeAprobar: boolean
+  anticipoPctDefault: number
 }) {
-  // Calcular descuento aplicado
   const descuentoAplicado = (() => {
     if (!data.descuentoGeneral) return 0
     if (data.descuentoGeneral.tipo === 'porcentaje') {
@@ -48,11 +51,15 @@ export default function Step3Ajustes({
 
   const totalCargosExtra = data.cargosExtra.reduce((s, c) => s + c.monto, 0)
 
-  const totalFinal = subtotalEventos - descuentoAplicado + totalCargosExtra
+  const subtotalAjustado = subtotalEventos - descuentoAplicado + totalCargosExtra
+  const iva = data.aplicaIva ? subtotalAjustado * 0.16 : 0
+  const totalFinal = subtotalAjustado + iva
 
-  // Comisión ejecutivo
   const comisionPct = data.comisionEjecutivoOverride ?? comisionEjecutivoDefault
   const comisionEjecutivoMonto = totalFinal * (comisionPct / 100)
+
+  const anticipoPct = data.anticipoPctOverride ?? anticipoPctDefault
+  const anticipoMonto = totalFinal * (anticipoPct / 100)
 
   function actualizarDescuento(cambios: Partial<DescuentoGeneral>) {
     onChange({
@@ -98,7 +105,7 @@ export default function Step3Ajustes({
         <div className="mb-4">
           <h2 className="font-serif text-xl text-stone-900">Descuento general</h2>
           <p className="text-sm text-stone-500">
-            Aplica al total de la cotización (paquetes + adicionales + flete)
+            Aplica al total antes de IVA
           </p>
         </div>
 
@@ -195,7 +202,7 @@ export default function Step3Ajustes({
           <div>
             <h2 className="font-serif text-xl text-stone-900">Cargos extra generales</h2>
             <p className="text-sm text-stone-500">
-              Cargos que no son de un evento específico (coordinación, comisiones externas, etc.)
+              Cargos no atados a un evento específico
             </p>
           </div>
           <button
@@ -252,6 +259,73 @@ export default function Step3Ajustes({
             </div>
           </div>
         )}
+      </section>
+
+      {/* IVA */}
+      <section className="bg-white rounded-2xl border border-stone-200 p-6">
+        <div className="mb-3">
+          <h2 className="font-serif text-xl text-stone-900">IVA</h2>
+          <p className="text-sm text-stone-500">
+            Aplica IVA del 16% sobre el subtotal ajustado
+          </p>
+        </div>
+
+        <label className="flex items-center gap-3 p-3 bg-stone-50 border border-stone-200 rounded-lg cursor-pointer hover:bg-stone-100 transition">
+          <input
+            type="checkbox"
+            checked={data.aplicaIva}
+            onChange={(e) => onChange({ aplicaIva: e.target.checked })}
+            className="w-4 h-4 accent-amber-600"
+          />
+          <div className="flex-1">
+            <div className="text-sm font-medium text-stone-900">Aplicar IVA 16%</div>
+            <div className="text-xs text-stone-500">
+              {data.aplicaIva
+                ? `IVA: $${iva.toLocaleString('es-MX', { maximumFractionDigits: 2 })}`
+                : 'Sin IVA'}
+            </div>
+          </div>
+        </label>
+      </section>
+
+      {/* ANTICIPO */}
+      <section className="bg-white rounded-2xl border border-stone-200 p-6">
+        <div className="mb-3">
+          <h2 className="font-serif text-xl text-stone-900">Anticipo</h2>
+          <p className="text-sm text-stone-500">
+            Porcentaje requerido para apartar la fecha
+          </p>
+        </div>
+
+        <div className="bg-stone-50 border border-stone-200 rounded-lg p-4 space-y-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-stone-700">Anticipo default:</span>
+            <span className="text-stone-900">{anticipoPctDefault}%</span>
+          </div>
+
+          <div>
+            <label className="block text-xs text-stone-700 mb-1">
+              Override (opcional, solo si esta cotización tiene un % distinto)
+            </label>
+            <div className="flex gap-2 items-center">
+              <NumberInput
+                value={data.anticipoPctOverride ?? 0}
+                onChange={(v) => onChange({ anticipoPctOverride: v === 0 ? null : v })}
+                max={100}
+                placeholder={`Default: ${anticipoPctDefault}%`}
+                className="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-sm bg-white"
+              />
+              <span className="text-stone-500 text-sm">%</span>
+            </div>
+          </div>
+
+          <div className="flex justify-between text-sm pt-2 border-t border-stone-200">
+            <span className="text-stone-700">Anticipo aplicado:</span>
+            <strong className="text-stone-900">
+              {anticipoPct}% = ${anticipoMonto.toLocaleString('es-MX', { maximumFractionDigits: 2 })}
+            </strong>
+          </div>
+        </div>
       </section>
 
       {/* COMISIÓN EJECUTIVO */}
