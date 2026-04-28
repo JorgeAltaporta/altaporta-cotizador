@@ -103,6 +103,13 @@ export default function Step4Resumen({
     })
   }
 
+  // Fecha de creación (hoy, ya que la cotización aún no se guarda)
+  const fechaCreacion = new Date().toLocaleDateString('es-MX', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
+
   // Calcular para cada evento
   const eventosCalculados = eventos.map((evt) => {
     const paquete = paquetes.find((p) => p.id === evt.paqueteId)
@@ -154,19 +161,27 @@ export default function Step4Resumen({
             Vigencia:{' '}
             <strong className="text-stone-700">{ajustes.vigenciaDias} días</strong>
           </span>
+          <span>
+            Creada el <strong className="text-stone-700">{fechaCreacion}</strong>
+          </span>
         </div>
       </section>
 
-      {/* EVENTOS — solo descripción, sin precios y sin zona */}
-      {eventosCalculados.map(({ evt, paquete }, idx) => (
+      {/* EVENTOS — descripción + banner oscuro con inversión por persona */}
+      {eventosCalculados.map(({ evt, paquete, precioPorPaxConFlete }, idx) => (
         <section
           key={evt.id}
           className="bg-white rounded-2xl border border-stone-200 p-6"
         >
-          <h3 className="font-serif text-xl text-stone-900 mb-1">
-            Evento {eventos.length > 1 ? idx + 1 : ''}
-            {paquete && ` · ${paquete.nombre}`}
-          </h3>
+          <div className="flex items-start justify-between mb-1 flex-wrap gap-2">
+            <h3 className="font-serif text-xl text-stone-900 flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-mono text-amber-700 bg-amber-50 px-2 py-1 rounded">
+                {evt.idAmigable}
+              </span>
+              Evento {eventos.length > 1 ? idx + 1 : ''}
+              {paquete && ` · ${paquete.nombre}`}
+            </h3>
+          </div>
           <p className="text-sm text-stone-500 italic mb-4">
             {evt.fecha && formatearFechaCorta(evt.fecha)} · {evt.locacionTexto}
           </p>
@@ -190,7 +205,7 @@ export default function Step4Resumen({
 
           {/* Contenido del paquete por categorías */}
           {paquete?.categorias && paquete.categorias.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               {paquete.categorias
                 .filter((c) => c.atributos && c.atributos.length > 0)
                 .map((cat) => (
@@ -220,6 +235,20 @@ export default function Step4Resumen({
                 ))}
             </div>
           )}
+
+          {/* Banner oscuro con inversión por persona */}
+          {precioPorPaxConFlete > 0 && (
+            <div className="bg-stone-900 text-stone-50 rounded-lg p-5 mt-4">
+              <div className="flex justify-between items-baseline">
+                <div className="text-xs tracking-widest text-amber-300 uppercase">
+                  Inversión por persona
+                </div>
+                <div className="font-serif text-3xl">
+                  ${precioPorPaxConFlete.toLocaleString('es-MX', { maximumFractionDigits: 2 })}
+                </div>
+              </div>
+            </div>
+          )}
         </section>
       ))}
 
@@ -234,14 +263,18 @@ export default function Step4Resumen({
             <div key={ec.evt.id}>
               {/* Encabezado del día/evento */}
               <div className="border-b-2 border-stone-300 pb-2 mb-3">
-                <div className="text-xs uppercase tracking-widest text-amber-700">
-                  {eventos.length > 1 ? `Evento ${idx + 1}` : 'Evento'} ·{' '}
-                  {ec.evt.fecha && formatearFechaCorta(ec.evt.fecha)}
+                <div className="text-xs uppercase tracking-widest text-amber-700 flex items-center gap-2">
+                  <span className="font-mono bg-amber-50 px-2 py-0.5 rounded">
+                    {ec.evt.idAmigable}
+                  </span>
+                  <span>
+                    {eventos.length > 1 ? `Evento ${idx + 1}` : 'Evento'} ·{' '}
+                    {ec.evt.fecha && formatearFechaCorta(ec.evt.fecha)}
+                  </span>
                 </div>
               </div>
 
               <div className="space-y-1.5 text-sm">
-                {/* Paquete con flete sumado */}
                 <div className="flex justify-between">
                   <span className="text-stone-700">
                     {ec.paquete?.nombre || 'Paquete'} · {ec.evt.pax} pax × $
@@ -254,7 +287,6 @@ export default function Step4Resumen({
                   </span>
                 </div>
 
-                {/* Adicionales del evento */}
                 {ec.evt.adicionales.map((sel) => {
                   const ad = getDatosAdicional(sel.adicionalId)
                   if (!ad) return null
