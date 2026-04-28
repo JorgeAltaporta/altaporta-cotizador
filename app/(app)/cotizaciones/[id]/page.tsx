@@ -40,6 +40,7 @@ type CargoExtra = {
 type Cotizacion = {
   id: string
   folio: string | null
+  etiqueta: string | null
   cliente_nombre: string
   estado: string
   ejecutivo_id: string | null
@@ -49,6 +50,8 @@ type Cotizacion = {
   descuento_general: DescuentoGeneral | null
   cargos_extra: CargoExtra[] | null
   vigencia_dias: number | null
+  anticipo_pct_override: number | null
+  aplica_iva: boolean | null
   eventos: Evento[] | null
   notas_cliente: string | null
   notas_internas: string | null
@@ -62,6 +65,8 @@ const COLORES_ESTADO: Record<string, string> = {
   APROBADA: 'bg-emerald-100 text-emerald-700',
   CANCELADA: 'bg-rose-100 text-rose-700',
 }
+
+const ID_HORA_EXTRA = '__HORA_EXTRA__'
 
 export default async function CotizacionDetallePage({
   params,
@@ -83,17 +88,27 @@ export default async function CotizacionDetallePage({
 
   const c = cotizacion as Cotizacion
 
-  const [paquetesResp, zonasResp, ejecutivoResp, wpResp, adicionalesResp] = await Promise.all([
-    supabase.from('paquetes').select('id, nombre'),
-    supabase.from('zonas').select('id, nombre'),
-    c.ejecutivo_id
-      ? supabase.from('profiles').select('nombre').eq('id', c.ejecutivo_id).single()
-      : Promise.resolve({ data: null }),
-    c.wp_id
-      ? supabase.from('wedding_planners').select('nombre, comision_default').eq('id', c.wp_id).single()
-      : Promise.resolve({ data: null }),
-    supabase.from('adicionales').select('id, nombre, unidad'),
-  ])
+  const [paquetesResp, zonasResp, ejecutivoResp, wpResp, adicionalesResp, clausulasResp] =
+    await Promise.all([
+      supabase.from('paquetes').select('id, nombre'),
+      supabase.from('zonas').select('id, nombre'),
+      c.ejecutivo_id
+        ? supabase.from('profiles').select('nombre').eq('id', c.ejecutivo_id).single()
+        : Promise.resolve({ data: null }),
+      c.wp_id
+        ? supabase
+            .from('wedding_planners')
+            .select('nombre, comision_default')
+            .eq('id', c.wp_id)
+            .single()
+        : Promise.resolve({ data: null }),
+      supabase.from('adicionales').select('id, nombre, unidad'),
+      supabase
+        .from('clausulas_globales')
+        .select('contenido')
+        .eq('id', 'global')
+        .single(),
+    ])
 
   const paquetesMap = new Map((paquetesResp.data || []).map((p) => [p.id, p.nombre]))
   const zonasMap = new Map((zonasResp.data || []).map((z) => [z.id, z.nombre]))
@@ -101,10 +116,21 @@ export default async function CotizacionDetallePage({
     (adicionalesResp.data || []).map((a) => [a.id, { nombre: a.nombre, unidad: a.unidad }])
   )
 
-  // Subtotal de eventos (paquete + flete + adicionales)
+  const clausulas = (clausulasResp.data?.contenido as {
+    anticipoPct: number
+    vigenciaDiasDefault: number
+    cambioFecha: string
+    instalaciones: string
+  }) || {
+    anticipoPct: 30,
+    vigenciaDiasDefault: 15,
+    cambioFecha: 'Se actualiza costo por persona',
+    instalaciones: 'Las proporciona el cliente',
+  }
+
+  // Cálculos
   const subtotalEventos = (c.eventos || []).reduce((sum, e) => sum + (e.total || 0), 0)
 
-  // Descuento aplicado
   const descuentoAplicado = (() => {
     if (!c.descuento_general) return 0
     if (c.descuento_general.tipo === 'porcentaje') {
@@ -113,16 +139,21 @@ export default async function CotizacionDetallePage({
     return c.descuento_general.valor
   })()
 
-  // Cargos extra
   const cargosExtra = c.cargos_extra || []
   const totalCargosExtra = cargosExtra.reduce((s, ce) => s + ce.monto, 0)
 
-  // Total final
-  const totalCotizacion = subtotalEventos - descuentoAplicado + totalCargosExtra
+  const subtotalAjustado = subtotalEventos - descuentoAplicado + totalCargosExtra
+  const aplicaIva = c.aplica_iva !== false
+  const iva = aplicaIva ? subtotalAjustado * 0.16 : 0
+  const totalCotizacion = subtotalAjustado + iva
 
-  // Comisiones
   const comisionWpPct = c.comision_override ?? wpResp.data?.comision_default ?? 0
   const comisionWpMonto = totalCotizacion * (comisionWpPct / 100)
+
+  const anticipoPct = c.anticipo_pct_override ?? clausulas.anticipoPct
+  const anticipoMonto = totalCotizacion * (anticipoPct / 100)
+
+  const vigenciaDias = c.vigencia_dias ?? clausulas.vigenciaDiasDefault
 
   return (
     <div className="p-12 max-w-4xl">
@@ -133,9 +164,9 @@ export default async function CotizacionDetallePage({
       </div>
 
       {/* HEADER */}
-      <div className="mb-8 flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
+      <div className="mb-8 flex items-start justify-between gap-6">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-3 mb-2 flex-wrap">
             <span
               className={`text-xs px-2 py-1 rounded font-medium ${
                 COLORES_ESTADO[c.estado] || 'bg-stone-100 text-stone-700'
@@ -152,23 +183,32 @@ export default async function CotizacionDetallePage({
           <h1 className="font-serif text-4xl text-stone-900">
             {c.cliente_nombre}
           </h1>
+          {c.etiqueta && (
+            <div className="text-sm text-stone-500 font-mono mt-2">
+              {c.etiqueta}
+            </div>
+          )}
           <div className="flex gap-4 text-sm text-stone-500 mt-2 flex-wrap">
             {ejecutivoResp.data && (
-              <span>Ejecutivo: <strong className="text-stone-700">{ejecutivoResp.data.nombre}</strong></span>
+              <span>
+                Ejecutivo: <strong className="text-stone-700">{ejecutivoResp.data.nombre}</strong>
+              </span>
             )}
             {wpResp.data && (
-              <span>WP: <strong className="text-stone-700">{wpResp.data.nombre}</strong></span>
+              <span>
+                WP: <strong className="text-stone-700">{wpResp.data.nombre}</strong>
+              </span>
             )}
-            {c.vigencia_dias && (
-              <span>Vigencia: <strong className="text-stone-700">{c.vigencia_dias} días</strong></span>
-            )}
+            <span>
+              Vigencia: <strong className="text-stone-700">{vigenciaDias} días</strong>
+            </span>
           </div>
         </div>
 
-        <div className="text-right">
+        <div className="text-right flex-shrink-0">
           <div className="text-xs text-stone-500 mb-1">Total</div>
           <div className="font-serif text-3xl text-stone-900">
-            ${totalCotizacion.toLocaleString('es-MX')}
+            ${totalCotizacion.toLocaleString('es-MX', { maximumFractionDigits: 2 })}
           </div>
           {comisionWpPct > 0 && (
             <div className="text-xs text-stone-500 mt-1">
@@ -236,9 +276,7 @@ export default async function CotizacionDetallePage({
               </div>
             </div>
 
-            {/* Desglose de precios */}
             <div className="border-t border-stone-100 pt-4 space-y-2 text-sm">
-              {/* Paquete con flete sumado */}
               <div className="flex justify-between">
                 <span className="text-stone-700">
                   {paqueteNombre || 'Paquete'} · {pax} pax × ${precioPorPaxConFlete.toLocaleString('es-MX', { maximumFractionDigits: 2 })}
@@ -248,9 +286,11 @@ export default async function CotizacionDetallePage({
                 </span>
               </div>
 
-              {/* Adicionales desglosados */}
               {(evento.adicionales || []).map((sel) => {
-                const ad = adicionalesMap.get(sel.adicionalId)
+                const esHoraExtra = sel.adicionalId === ID_HORA_EXTRA
+                const ad = esHoraExtra
+                  ? { nombre: 'Hora extra', unidad: 'hora' }
+                  : adicionalesMap.get(sel.adicionalId)
                 if (!ad) return null
                 const subtotal = sel.cantidad * sel.precioUnitario
                 const esCortesia = sel.precioUnitario === 0
@@ -276,59 +316,106 @@ export default async function CotizacionDetallePage({
         )
       })}
 
-      {/* AJUSTES GLOBALES */}
-      {(c.descuento_general || cargosExtra.length > 0) && (
-        <section className="bg-white rounded-2xl border border-stone-200 p-6 mb-6">
-          <h2 className="font-serif text-xl text-stone-900 mb-4">Ajustes</h2>
+      {/* AJUSTES + TOTAL */}
+      <section className="bg-white rounded-2xl border border-stone-200 p-6 mb-6">
+        <h2 className="font-serif text-xl text-stone-900 mb-4">Resumen de inversión</h2>
 
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span className="text-stone-700">Subtotal eventos</span>
-              <span className="font-medium text-stone-900">
-                ${subtotalEventos.toLocaleString('es-MX')}
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-stone-700">Subtotal eventos</span>
+            <span className="font-medium text-stone-900">
+              ${subtotalEventos.toLocaleString('es-MX')}
+            </span>
+          </div>
+
+          {c.descuento_general && (
+            <div className="flex justify-between text-emerald-700">
+              <span>
+                Descuento{' '}
+                {c.descuento_general.tipo === 'porcentaje' ? `${c.descuento_general.valor}%` : ''}
+                {c.descuento_general.concepto && ` (${c.descuento_general.concepto})`}
+              </span>
+              <span className="font-medium">
+                −${descuentoAplicado.toLocaleString('es-MX')}
               </span>
             </div>
+          )}
 
-            {c.descuento_general && (
-              <div className="flex justify-between text-emerald-700">
-                <span>
-                  Descuento {c.descuento_general.tipo === 'porcentaje' ? `${c.descuento_general.valor}%` : ''}
-                  {c.descuento_general.concepto && ` (${c.descuento_general.concepto})`}
-                </span>
-                <span className="font-medium">
-                  −${descuentoAplicado.toLocaleString('es-MX')}
-                </span>
-              </div>
-            )}
-
-            {cargosExtra.map((cargo) => (
-              <div key={cargo.id} className="flex justify-between">
-                <span className="text-stone-700">{cargo.concepto || 'Cargo extra'}</span>
-                <span className="font-medium text-stone-900">
-                  ${cargo.monto.toLocaleString('es-MX')}
-                </span>
-              </div>
-            ))}
-
-            <div className="border-t border-stone-200 pt-2 mt-2 flex justify-between text-lg">
-              <span className="font-medium text-stone-900">Total final</span>
-              <span className="font-serif text-stone-900">
-                ${totalCotizacion.toLocaleString('es-MX')}
+          {cargosExtra.map((cargo) => (
+            <div key={cargo.id} className="flex justify-between">
+              <span className="text-stone-700">{cargo.concepto || 'Cargo extra'}</span>
+              <span className="font-medium text-stone-900">
+                ${cargo.monto.toLocaleString('es-MX')}
               </span>
+            </div>
+          ))}
+
+          {(c.descuento_general || cargosExtra.length > 0) && (
+            <div className="flex justify-between border-t border-stone-100 pt-2">
+              <span className="text-stone-700">Subtotal ajustado</span>
+              <span className="font-medium text-stone-900">
+                ${subtotalAjustado.toLocaleString('es-MX')}
+              </span>
+            </div>
+          )}
+
+          {aplicaIva && (
+            <div className="flex justify-between">
+              <span className="text-stone-700">IVA 16%</span>
+              <span className="font-medium text-stone-900">
+                ${iva.toLocaleString('es-MX', { maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          )}
+
+          <div className="border-t-2 border-stone-300 pt-2 mt-2 flex justify-between text-lg">
+            <span className="font-medium text-stone-900">Total</span>
+            <span className="font-serif text-stone-900">
+              ${totalCotizacion.toLocaleString('es-MX', { maximumFractionDigits: 2 })}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-6 bg-stone-900 text-stone-50 rounded-lg p-5">
+          <div className="flex justify-between items-baseline">
+            <div>
+              <div className="text-xs tracking-widest text-amber-300 uppercase mb-1">
+                Anticipo para apartar fecha
+              </div>
+              <div className="text-xs text-amber-300/80">{anticipoPct}% del total</div>
+            </div>
+            <div className="font-serif text-2xl">
+              ${anticipoMonto.toLocaleString('es-MX', { maximumFractionDigits: 2 })}
             </div>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
-      {/* NOTAS PARA CLIENTE */}
+      {/* TÉRMINOS Y CONDICIONES */}
+      <section className="bg-stone-50 rounded-2xl border border-stone-200 p-6 mb-6">
+        <h2 className="font-serif text-xl text-stone-900 mb-4">Términos y condiciones</h2>
+        <ul className="text-sm text-stone-700 space-y-2 list-disc pl-5">
+          <li>El cliente proporcionará instalaciones adecuadas para el manejo de alimentos.</li>
+          <li>
+            El uso indebido o daños al mobiliario durante el evento generarán cargos adicionales,
+            mismos que deberán ser cubiertos por el cliente.
+          </li>
+          <li>Presupuesto válido por {vigenciaDias} días a partir de su emisión.</li>
+          <li>
+            En caso de cambiar de fecha o reducir número de invitados, {clausulas.cambioFecha.toLowerCase()}.
+          </li>
+          <li>Se requiere un anticipo del {anticipoPct}% del total para el apartado de fecha.</li>
+          <li>Los costos presentados no incluyen propinas, las cuales quedan a consideración del cliente.</li>
+        </ul>
+      </section>
+
       {c.notas_cliente && (
         <section className="bg-stone-50 rounded-2xl border border-stone-200 p-6 mb-6">
-          <h3 className="font-medium text-stone-900 mb-2">Notas</h3>
+          <h3 className="font-medium text-stone-900 mb-2">Notas para el cliente</h3>
           <p className="text-sm text-stone-700 whitespace-pre-wrap">{c.notas_cliente}</p>
         </section>
       )}
 
-      {/* NOTAS INTERNAS */}
       {c.notas_internas && (
         <section className="bg-amber-50 rounded-2xl border border-amber-200 p-6 mb-6">
           <h3 className="font-medium text-amber-900 mb-2">📝 Notas internas (no visibles al cliente)</h3>
@@ -336,7 +423,6 @@ export default async function CotizacionDetallePage({
         </section>
       )}
 
-      {/* AVISO MVP */}
       <section className="bg-blue-50 rounded-2xl border border-blue-200 p-6">
         <h3 className="font-medium text-blue-900 mb-2">📋 Versión MVP</h3>
         <p className="text-sm text-blue-700">
