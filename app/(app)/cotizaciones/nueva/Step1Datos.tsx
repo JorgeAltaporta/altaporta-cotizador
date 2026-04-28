@@ -25,6 +25,16 @@ export type Paquete = {
   zonas_permitidas: string[] | null
   adicionales_permitidos: string[] | null
   es_personalizado: boolean
+  categorias: Array<{
+    id: string
+    nombre: string
+    icono: string
+    atributos: Array<{
+      id: string
+      nombre: string
+      valor: string
+    }>
+  }> | null
 }
 
 export type Rango = {
