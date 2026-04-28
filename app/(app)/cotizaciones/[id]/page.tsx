@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { formatearFechaLarga } from '@/lib/fecha'
 
 type AdicionalEvento = {
   id: string
@@ -128,7 +129,6 @@ export default async function CotizacionDetallePage({
     instalaciones: 'Las proporciona el cliente',
   }
 
-  // Cálculos
   const subtotalEventos = (c.eventos || []).reduce((sum, e) => sum + (e.total || 0), 0)
 
   const descuentoAplicado = (() => {
@@ -163,7 +163,6 @@ export default async function CotizacionDetallePage({
         </Link>
       </div>
 
-      {/* HEADER */}
       <div className="mb-8 flex items-start justify-between gap-6">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-2 flex-wrap">
@@ -248,13 +247,7 @@ export default async function CotizacionDetallePage({
               <div>
                 <div className="text-xs text-stone-500 mb-1">Fecha</div>
                 <div className="text-stone-900">
-                  {evento.fecha
-                    ? new Date(evento.fecha).toLocaleDateString('es-MX', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                      })
-                    : '—'}
+                  {evento.fecha ? formatearFechaLarga(evento.fecha) : '—'}
                 </div>
               </div>
               <div>
@@ -391,7 +384,6 @@ export default async function CotizacionDetallePage({
         </div>
       </section>
 
-      {/* TÉRMINOS Y CONDICIONES */}
       <section className="bg-stone-50 rounded-2xl border border-stone-200 p-6 mb-6">
         <h2 className="font-serif text-xl text-stone-900 mb-4">Términos y condiciones</h2>
         <ul className="text-sm text-stone-700 space-y-2 list-disc pl-5">
