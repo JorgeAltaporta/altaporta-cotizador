@@ -1,8 +1,20 @@
 'use client'
 
-import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer'
+import { useState, useEffect } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import PDFDocument from './PDFDocument'
+
+// Lazy load del viewer/download para evitar SSR issues
+const PDFViewer = dynamic(
+  () => import('@react-pdf/renderer').then((mod) => mod.PDFViewer),
+  { ssr: false, loading: () => <div className="p-12 text-center text-stone-500">Cargando preview...</div> }
+)
+
+const PDFDownloadLink = dynamic(
+  () => import('@react-pdf/renderer').then((mod) => mod.PDFDownloadLink),
+  { ssr: false, loading: () => <span className="text-sm text-stone-500">Preparando...</span> }
+)
 
 type Props = {
   cotizacion: any
@@ -11,15 +23,11 @@ type Props = {
   clausulas: any
 }
 
-/**
- * Genera nombre de archivo limpio a partir de la etiqueta.
- * "15Mar26 · Xcanatun · 150pax · WP Baku" → "15Mar26-Xcanatun-150pax-WP_Baku.pdf"
- */
 function generarNombreArchivo(etiqueta: string | null, folio: string | null): string {
   if (etiqueta) {
     const limpio = etiqueta
       .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '') // quitar tildes
+      .replace(/[\u0300-\u036f]/g, '')
       .replace(/·/g, '-')
       .replace(/\s+/g, '_')
       .replace(/[^a-zA-Z0-9_-]/g, '')
@@ -36,6 +44,12 @@ export default function PDFViewerCliente({
   adicionales,
   clausulas,
 }: Props) {
+  const [montado, setMontado] = useState(false)
+
+  useEffect(() => {
+    setMontado(true)
+  }, [])
+
   const nombreArchivo = generarNombreArchivo(
     cotizacion.etiqueta,
     cotizacion.folio
@@ -52,7 +66,6 @@ export default function PDFViewerCliente({
 
   return (
     <div className="min-h-screen bg-stone-100">
-      {/* Header con botones */}
       <div className="bg-white border-b border-stone-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
           <Link
@@ -66,30 +79,37 @@ export default function PDFViewerCliente({
             <div className="text-xs text-stone-500 font-mono hidden md:block">
               {nombreArchivo}
             </div>
-            <PDFDownloadLink
-              document={documento}
-              fileName={nombreArchivo}
-              className="bg-amber-700 hover:bg-amber-800 text-white px-5 py-2 rounded-lg font-medium text-sm transition"
-            >
-              {({ loading }) =>
-                loading ? 'Generando PDF...' : '⬇ Descargar PDF'
-              }
-            </PDFDownloadLink>
+            {montado && (
+              <PDFDownloadLink
+                document={documento}
+                fileName={nombreArchivo}
+                className="bg-amber-700 hover:bg-amber-800 text-white px-5 py-2 rounded-lg font-medium text-sm transition"
+              >
+                {({ loading }: { loading: boolean }) =>
+                  loading ? 'Generando PDF...' : '⬇ Descargar PDF'
+                }
+              </PDFDownloadLink>
+            )}
           </div>
         </div>
       </div>
 
-      {/* PDF Viewer */}
       <div className="max-w-7xl mx-auto p-6">
         <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-          <PDFViewer
-            width="100%"
-            height={900}
-            showToolbar={true}
-            style={{ border: 'none' }}
-          >
-            {documento}
-          </PDFViewer>
+          {montado ? (
+            <PDFViewer
+              width="100%"
+              height={900}
+              showToolbar={true}
+              style={{ border: 'none' }}
+            >
+              {documento}
+            </PDFViewer>
+          ) : (
+            <div className="p-12 text-center text-stone-500" style={{ minHeight: 900 }}>
+              Cargando preview...
+            </div>
+          )}
         </div>
 
         <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900">
