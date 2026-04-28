@@ -5,8 +5,9 @@ type EventoResumen = {
   pax?: number
   paqueteNombre?: string
   zonaNombre?: string
-  subtotalPaquete?: number
-  flete?: number
+  precioPorPaxConFlete?: number
+  subtotalPaqueteConFlete?: number
+  subtotalAdicionales?: number
   total?: number
 }
 
@@ -55,16 +56,18 @@ export default function ResumenVivo({
 
             <div className="space-y-1.5 text-sm border-t border-stone-100 pt-3">
               <div className="flex justify-between">
-                <span className="text-stone-600">Paquete</span>
+                <span className="text-stone-600">
+                  Paquete{evento.precioPorPaxConFlete ? ` × $${evento.precioPorPaxConFlete.toLocaleString('es-MX')}` : ''}
+                </span>
                 <span className="text-stone-900">
-                  ${(evento.subtotalPaquete || 0).toLocaleString('es-MX')}
+                  ${(evento.subtotalPaqueteConFlete || 0).toLocaleString('es-MX')}
                 </span>
               </div>
-              {(evento.flete || 0) > 0 && (
+              {(evento.subtotalAdicionales || 0) > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-stone-600">Flete</span>
+                  <span className="text-stone-600">Adicionales</span>
                   <span className="text-stone-900">
-                    ${(evento.flete || 0).toLocaleString('es-MX')}
+                    ${(evento.subtotalAdicionales || 0).toLocaleString('es-MX')}
                   </span>
                 </div>
               )}
