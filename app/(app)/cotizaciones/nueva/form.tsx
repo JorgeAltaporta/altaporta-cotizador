@@ -346,7 +346,6 @@ export default function WizardCotizacionForm({
     })
   }
 
-  // RESUMEN VIVO con flete sumado al paquete
   const resumenEvento = useMemo(() => {
     if (totalGeneral === 0 && subtotalEventos === 0) return undefined
     if (data.eventos.length === 1) {
@@ -407,6 +406,7 @@ export default function WizardCotizacionForm({
               adicionales={adicionales}
               categorias={categorias}
               zonas={zonas}
+              rangos={rangos}
               paquetes={paquetes}
               usuarioId={usuario.id}
             />
