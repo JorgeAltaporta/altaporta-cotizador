@@ -1,3 +1,5 @@
+import { parsearFechaLocal } from './fecha'
+
 const MESES_CORTOS = [
   'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun',
   'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic',
@@ -11,10 +13,10 @@ function normalizarTexto(s: string): string {
 }
 
 function formatearFechaCorta(fechaISO: string): string {
-  const [y, m, d] = fechaISO.split('-')
-  const dia = parseInt(d)
-  const mes = MESES_CORTOS[parseInt(m) - 1]
-  const año = y.slice(-2)
+  const d = parsearFechaLocal(fechaISO)
+  const dia = d.getDate()
+  const mes = MESES_CORTOS[d.getMonth()]
+  const año = String(d.getFullYear()).slice(-2)
   return `${dia}${mes}${año}`
 }
 
@@ -53,11 +55,15 @@ export function generarEtiqueta(
     if (primera === ultima) {
       fechaParte = formatearFechaCorta(primera)
     } else {
-      const [y1, m1, d1] = primera.split('-')
-      const [y2, m2, d2] = ultima.split('-')
-      if (y1 === y2 && m1 === m2) {
-        const mes = MESES_CORTOS[parseInt(m1) - 1]
-        fechaParte = `${parseInt(d1)}-${parseInt(d2)}${mes}${y1.slice(-2)}`
+      const dPrimera = parsearFechaLocal(primera)
+      const dUltima = parsearFechaLocal(ultima)
+      if (
+        dPrimera.getFullYear() === dUltima.getFullYear() &&
+        dPrimera.getMonth() === dUltima.getMonth()
+      ) {
+        const mes = MESES_CORTOS[dPrimera.getMonth()]
+        const año = String(dPrimera.getFullYear()).slice(-2)
+        fechaParte = `${dPrimera.getDate()}-${dUltima.getDate()}${mes}${año}`
       } else {
         fechaParte = `${formatearFechaCorta(primera)}-${formatearFechaCorta(ultima)}`
       }
