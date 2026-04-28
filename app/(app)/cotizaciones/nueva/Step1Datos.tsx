@@ -51,6 +51,7 @@ export type Usuario = {
 
 export type EventoForm = {
   id: string
+  idAmigable: string
   fecha: string
   locacionTexto: string
   zonaIdManual: string | null
@@ -66,9 +67,10 @@ export type AdicionalSeleccionado = {
   precioUnitario: number
 }
 
-export function eventoVacio(): EventoForm {
+export function eventoVacio(idAmigable: string = 'EV-001'): EventoForm {
   return {
     id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    idAmigable,
     fecha: '',
     locacionTexto: '',
     zonaIdManual: null,
@@ -76,6 +78,18 @@ export function eventoVacio(): EventoForm {
     paqueteId: '',
     adicionales: [],
   }
+}
+
+// Genera el siguiente ID amigable basado en los IDs ya usados
+export function siguienteIdAmigable(eventos: EventoForm[]): string {
+  const numerosUsados = eventos
+    .map((e) => {
+      const match = e.idAmigable?.match(/^EV-(\d+)$/)
+      return match ? parseInt(match[1]) : 0
+    })
+    .filter((n) => n > 0)
+  const max = numerosUsados.length > 0 ? Math.max(...numerosUsados) : 0
+  return `EV-${String(max + 1).padStart(3, '0')}`
 }
 
 export type Step1Data = {
@@ -113,7 +127,8 @@ export default function Step1Datos({
   }
 
   function agregarEvento() {
-    onChange({ eventos: [...data.eventos, eventoVacio()] })
+    const nuevoId = siguienteIdAmigable(data.eventos)
+    onChange({ eventos: [...data.eventos, eventoVacio(nuevoId)] })
   }
 
   function eliminarEvento(idx: number) {
@@ -306,10 +321,13 @@ export default function Step1Datos({
             return (
               <section key={evt.id} className="bg-white rounded-2xl border border-stone-200 p-6">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-serif text-lg text-stone-900">
+                  <h3 className="font-serif text-lg text-stone-900 flex items-center gap-2">
+                    <span className="text-xs font-mono text-amber-700 bg-amber-50 px-2 py-1 rounded">
+                      {evt.idAmigable}
+                    </span>
                     Evento {data.eventos.length > 1 ? idx + 1 : ''}
                     {calculoTotal > 0 && (
-                      <span className="ml-3 text-sm text-stone-500 font-normal">
+                      <span className="ml-2 text-sm text-stone-500 font-normal">
                         ${calculoTotal.toLocaleString('es-MX')}
                       </span>
                     )}
