@@ -4,6 +4,7 @@ import { useState, useTransition, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { generarEtiqueta } from '@/lib/etiqueta-cotizacion'
 import Stepper from '../Stepper'
 import ResumenVivo from '../ResumenVivo'
 import Step1Datos, {
@@ -37,6 +38,13 @@ type Categoria = {
   orden: number
 }
 
+type ClausulasGlobales = {
+  anticipoPct: number
+  vigenciaDiasDefault: number
+  cambioFecha: string
+  instalaciones: string
+}
+
 const COMISION_EJECUTIVO_DEFAULT: Record<string, number> = {}
 
 export default function WizardCotizacionForm({
@@ -48,6 +56,7 @@ export default function WizardCotizacionForm({
   ejecutivos,
   adicionales,
   categorias,
+  clausulasGlobales,
 }: {
   usuario: Usuario
   paquetes: Paquete[]
@@ -57,6 +66,7 @@ export default function WizardCotizacionForm({
   ejecutivos: Usuario[]
   adicionales: Adicional[]
   categorias: Categoria[]
+  clausulasGlobales: ClausulasGlobales
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -77,7 +87,9 @@ export default function WizardCotizacionForm({
     cargosExtra: [],
     comisionEjecutivoOverride: null,
     notasCliente: '',
-    vigenciaDias: 30,
+    vigenciaDias: clausulasGlobales.vigenciaDiasDefault,
+    anticipoPctOverride: null,
+    aplicaIva: true,
   })
 
   function actualizarData(cambios: Partial<Step1Data>) {
@@ -179,12 +191,28 @@ export default function WizardCotizacionForm({
 
   const totalCargosExtra = ajustes.cargosExtra.reduce((s, c) => s + c.monto, 0)
 
-  const totalGeneral = subtotalEventos - descuentoAplicado + totalCargosExtra
+  const subtotalAjustado = subtotalEventos - descuentoAplicado + totalCargosExtra
+  const iva = ajustes.aplicaIva ? subtotalAjustado * 0.16 : 0
+  const totalGeneral = subtotalAjustado + iva
 
   const ejecutivoSeleccionado = ejecutivos.find((e) => e.id === data.ejecutivoId)
-  const ejecutivoNombre = ejecutivoSeleccionado?.nombre ||
+  const ejecutivoNombre =
+    ejecutivoSeleccionado?.nombre ||
     (usuario.rol === 'EJECUTIVO' ? usuario.nombre : null)
   const comisionEjecutivoDefault = COMISION_EJECUTIVO_DEFAULT[data.ejecutivoId] ?? 1
+
+  // Etiqueta descriptiva en vivo
+  const etiqueta = useMemo(() => {
+    return generarEtiqueta(
+      data.eventos.map((e) => ({
+        fecha: e.fecha,
+        locacion_texto: e.locacionTexto,
+        pax: e.pax,
+      })),
+      data.wpId,
+      weddingPlanners
+    )
+  }, [data.eventos, data.wpId, weddingPlanners])
 
   function validarStep1(): string | null {
     if (!data.clienteNombre.trim()) {
@@ -311,6 +339,7 @@ export default function WizardCotizacionForm({
         .from('cotizaciones')
         .insert({
           folio,
+          etiqueta: etiqueta || null,
           cliente_nombre: data.clienteNombre.trim(),
           notas_internas: data.notasInternas.trim() || null,
           notas_cliente: ajustes.notasCliente.trim() || null,
@@ -322,6 +351,8 @@ export default function WizardCotizacionForm({
           descuento_general: ajustes.descuentoGeneral,
           cargos_extra: ajustes.cargosExtra,
           vigencia_dias: ajustes.vigenciaDias,
+          anticipo_pct_override: ajustes.anticipoPctOverride,
+          aplica_iva: ajustes.aplicaIva,
           eventos: eventosParaGuardar,
           adicionales_globales: [],
           historial: [
@@ -362,7 +393,8 @@ export default function WizardCotizacionForm({
           : undefined,
         precioPorPaxConFlete,
         subtotalPaqueteConFlete,
-        subtotalAdicionales: e.subtotalAdicionales - descuentoAplicado + totalCargosExtra,
+        subtotalAdicionales:
+          e.subtotalAdicionales - descuentoAplicado + totalCargosExtra + iva,
         total: totalGeneral,
       }
     }
@@ -372,16 +404,20 @@ export default function WizardCotizacionForm({
       paqueteNombre: 'Múltiples',
       total: totalGeneral,
     }
-  }, [data.eventos, eventosConCalculo, totalGeneral, descuentoAplicado, totalCargosExtra, subtotalEventos])
+  }, [
+    data.eventos,
+    eventosConCalculo,
+    totalGeneral,
+    descuentoAplicado,
+    totalCargosExtra,
+    iva,
+    subtotalEventos,
+  ])
 
   return (
     <div>
       <div className="mb-8">
-        <Stepper
-          step={step}
-          enabledSteps={[1, 2, 3]}
-          onStepChange={irStep}
-        />
+        <Stepper step={step} enabledSteps={[1, 2, 3]} onStepChange={irStep} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -420,6 +456,7 @@ export default function WizardCotizacionForm({
               comisionEjecutivoDefault={comisionEjecutivoDefault}
               ejecutivoNombre={ejecutivoNombre}
               puedeAprobar={usuario.puede_aprobar}
+              anticipoPctDefault={clausulasGlobales.anticipoPct}
             />
           )}
 
@@ -434,6 +471,7 @@ export default function WizardCotizacionForm({
           <div className="lg:sticky lg:top-6 space-y-4">
             <ResumenVivo
               clienteNombre={data.clienteNombre || undefined}
+              etiqueta={etiqueta}
               wpNombre={wp?.nombre}
               comisionPct={comisionPct}
               evento={resumenEvento}
