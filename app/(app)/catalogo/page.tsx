@@ -1,80 +1,117 @@
 import Link from 'next/link'
 
-const SECCIONES = [
+const TARJETAS = [
   {
-    id: 'paquetes',
-    titulo: 'Paquetes',
-    descripcion: 'Menús, precios por rango, contenido',
-    icono: '📦',
-    color: '#FDE68A',
     href: '/catalogo/paquetes',
+    titulo: 'Paquetes',
+    descripcion: 'Premium, Plus, Esencial, Light, Personalizados...',
+    icono: '📦',
+    color: 'amber',
   },
   {
-    id: 'proteinas',
-    titulo: 'Proteínas',
-    descripcion: 'Pollo, filete, langosta, etc.',
-    icono: '🍖',
-    color: '#FECACA',
     href: '/catalogo/proteinas',
+    titulo: 'Proteínas',
+    descripcion: 'Filete, salmón, ribeye, cordero...',
+    icono: '🥩',
+    color: 'rose',
   },
   {
-    id: 'zonas',
-    titulo: 'Zonas y locaciones',
-    descripcion: 'Mérida centro, haciendas, foráneas',
-    icono: '📍',
-    color: '#BBF7D0',
     href: '/catalogo/zonas',
+    titulo: 'Zonas y locaciones',
+    descripcion: 'Mérida centro, haciendas, costa, fletes y horas extra',
+    icono: '📍',
+    color: 'emerald',
   },
   {
-    id: 'adicionales',
-    titulo: 'Adicionales',
-    descripcion: 'Postres, mobiliario, hora extra',
-    icono: '🎁',
-    color: '#BFDBFE',
     href: '/catalogo/adicionales',
+    titulo: 'Adicionales',
+    descripcion: 'Postres, mobiliario extra, personal, servicios',
+    icono: '✨',
+    color: 'blue',
   },
   {
-    id: 'rangos',
-    titulo: 'Rangos de pax',
-    descripcion: 'Escalones de precio (50-79, 80-99, etc.)',
-    icono: '👥',
-    color: '#E7E5E4',
     href: '/catalogo/rangos',
+    titulo: 'Rangos de pax',
+    descripcion: 'Tarifas por número de invitados',
+    icono: '👥',
+    color: 'stone',
+  },
+  {
+    href: '/catalogo/clausulas',
+    titulo: 'Cláusulas globales',
+    descripcion: 'Anticipo, vigencia, términos del PDF',
+    icono: '📄',
+    color: 'violet',
   },
 ]
 
+const COLORES: Record<string, { bg: string; border: string; hover: string }> = {
+  amber: {
+    bg: 'bg-amber-50',
+    border: 'border-amber-200',
+    hover: 'hover:border-amber-400 hover:bg-amber-100',
+  },
+  rose: {
+    bg: 'bg-rose-50',
+    border: 'border-rose-200',
+    hover: 'hover:border-rose-400 hover:bg-rose-100',
+  },
+  emerald: {
+    bg: 'bg-emerald-50',
+    border: 'border-emerald-200',
+    hover: 'hover:border-emerald-400 hover:bg-emerald-100',
+  },
+  blue: {
+    bg: 'bg-blue-50',
+    border: 'border-blue-200',
+    hover: 'hover:border-blue-400 hover:bg-blue-100',
+  },
+  stone: {
+    bg: 'bg-stone-50',
+    border: 'border-stone-200',
+    hover: 'hover:border-stone-400 hover:bg-stone-100',
+  },
+  violet: {
+    bg: 'bg-violet-50',
+    border: 'border-violet-200',
+    hover: 'hover:border-violet-400 hover:bg-violet-100',
+  },
+}
+
 export default function CatalogoPage() {
   return (
-    <div className="p-12 max-w-6xl">
-      <div className="mb-10">
+    <div className="p-12 max-w-5xl">
+      <div className="mb-8">
         <div className="text-xs tracking-widest text-amber-700 uppercase mb-2">
-          Configuración
+          Catálogo
         </div>
-        <h1 className="font-serif text-4xl text-stone-900">Catálogo</h1>
+        <h1 className="font-serif text-4xl text-stone-900">Catálogo de servicios</h1>
         <p className="text-stone-600 mt-2">
-          Datos maestros que se usan en cotizaciones
+          Configura paquetes, proteínas, zonas, adicionales y términos.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {SECCIONES.map((s) => (
-          <Link
-            key={s.id}
-            href={s.href}
-            className="bg-white rounded-2xl border border-stone-200 p-6 hover:border-amber-400 hover:shadow-md transition group"
-          >
-            <div
-              className="w-14 h-14 rounded-xl flex items-center justify-center text-3xl mb-4"
-              style={{ backgroundColor: s.color }}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {TARJETAS.map((t) => {
+          const c = COLORES[t.color] || COLORES.stone
+          return (
+            <Link
+              key={t.href}
+              href={t.href}
+              className={`block p-6 rounded-2xl border-2 transition ${c.bg} ${c.border} ${c.hover}`}
             >
-              {s.icono}
-            </div>
-            <h2 className="font-serif text-xl text-stone-900 mb-1 group-hover:text-amber-700 transition">
-              {s.titulo}
-            </h2>
-            <p className="text-sm text-stone-600">{s.descripcion}</p>
-          </Link>
-        ))}
+              <div className="flex items-start gap-4">
+                <div className="text-3xl flex-shrink-0">{t.icono}</div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="font-serif text-xl text-stone-900 mb-1">
+                    {t.titulo}
+                  </h2>
+                  <p className="text-sm text-stone-600">{t.descripcion}</p>
+                </div>
+              </div>
+            </Link>
+          )
+        })}
       </div>
     </div>
   )
