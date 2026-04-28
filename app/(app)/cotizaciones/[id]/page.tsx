@@ -2,6 +2,16 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { formatearFechaLarga } from '@/lib/fecha'
+import {
+  type CotizacionSnapshot,
+  obtenerPaquete,
+  obtenerZona,
+  obtenerAdicional,
+  obtenerClausulas,
+  obtenerWP,
+  obtenerEjecutivo,
+  tieneSnapshot,
+} from '@/lib/snapshot-cotizacion'
 
 type AdicionalEvento = {
   id: string
@@ -57,6 +67,7 @@ type Cotizacion = {
   notas_cliente: string | null
   notas_internas: string | null
   fecha_creacion: string
+  snapshot: unknown
 }
 
 const COLORES_ESTADO: Record<string, string> = {
@@ -66,8 +77,6 @@ const COLORES_ESTADO: Record<string, string> = {
   APROBADA: 'bg-emerald-100 text-emerald-700',
   CANCELADA: 'bg-rose-100 text-rose-700',
 }
-
-const ID_HORA_EXTRA = '__HORA_EXTRA__'
 
 export default async function CotizacionDetallePage({
   params,
@@ -89,21 +98,30 @@ export default async function CotizacionDetallePage({
 
   const c = cotizacion as Cotizacion
 
+  // ── Snapshot vs catálogo actual ───────────────────────────────────────────
+  // Si la cotización tiene snapshot (creada con Fase G+), leemos de ahí.
+  // Si no, fallback al catálogo y banner de advertencia (cotización legacy).
+  const snapshot: CotizacionSnapshot | null = tieneSnapshot(c.snapshot)
+    ? c.snapshot
+    : null
+
   const [paquetesResp, zonasResp, ejecutivoResp, wpResp, adicionalesResp, clausulasResp] =
     await Promise.all([
-      supabase.from('paquetes').select('id, nombre'),
-      supabase.from('zonas').select('id, nombre'),
+      supabase
+        .from('paquetes')
+        .select('id, nombre, color, descripcion, horas_servicio, categorias'),
+      supabase.from('zonas').select('id, nombre, color'),
       c.ejecutivo_id
-        ? supabase.from('profiles').select('nombre').eq('id', c.ejecutivo_id).single()
+        ? supabase.from('profiles').select('id, nombre').eq('id', c.ejecutivo_id).single()
         : Promise.resolve({ data: null }),
       c.wp_id
         ? supabase
             .from('wedding_planners')
-            .select('nombre, comision_default')
+            .select('id, nombre, contacto, comision_default')
             .eq('id', c.wp_id)
             .single()
         : Promise.resolve({ data: null }),
-      supabase.from('adicionales').select('id, nombre, unidad'),
+      supabase.from('adicionales').select('id, nombre, unidad, notas'),
       supabase
         .from('clausulas_globales')
         .select('contenido')
@@ -111,13 +129,11 @@ export default async function CotizacionDetallePage({
         .single(),
     ])
 
-  const paquetesMap = new Map((paquetesResp.data || []).map((p) => [p.id, p.nombre]))
-  const zonasMap = new Map((zonasResp.data || []).map((z) => [z.id, z.nombre]))
-  const adicionalesMap = new Map(
-    (adicionalesResp.data || []).map((a) => [a.id, { nombre: a.nombre, unidad: a.unidad }])
-  )
+  const paquetesCatalogo = paquetesResp.data || []
+  const zonasCatalogo = zonasResp.data || []
+  const adicionalesCatalogo = adicionalesResp.data || []
 
-  const clausulas = (clausulasResp.data?.contenido as {
+  const clausulasCatalogo = (clausulasResp.data?.contenido as {
     anticipoPct: number
     vigenciaDiasDefault: number
     cambioFecha: string
@@ -128,6 +144,20 @@ export default async function CotizacionDetallePage({
     cambioFecha: 'Se actualiza costo por persona',
     instalaciones: 'Las proporciona el cliente',
   }
+
+  const clausulas = obtenerClausulas(snapshot, clausulasCatalogo)
+  const wpDatos = obtenerWP(
+    snapshot,
+    wpResp.data
+      ? { id: wpResp.data.id, nombre: wpResp.data.nombre, contacto: wpResp.data.contacto }
+      : null
+  )
+  const ejecutivoDatos = obtenerEjecutivo(
+    snapshot,
+    ejecutivoResp.data
+      ? { id: ejecutivoResp.data.id, nombre: ejecutivoResp.data.nombre }
+      : null
+  )
 
   const subtotalEventos = (c.eventos || []).reduce((sum, e) => sum + (e.total || 0), 0)
 
@@ -147,7 +177,8 @@ export default async function CotizacionDetallePage({
   const iva = aplicaIva ? subtotalAjustado * 0.16 : 0
   const totalCotizacion = subtotalAjustado + iva
 
-  const comisionWpPct = c.comision_override ?? wpResp.data?.comision_default ?? 0
+  const comisionWpPct =
+    c.comision_override ?? (wpResp.data?.comision_default || 0)
   const comisionWpMonto = totalCotizacion * (comisionWpPct / 100)
 
   const anticipoPct = c.anticipo_pct_override ?? clausulas.anticipoPct
@@ -168,6 +199,15 @@ export default async function CotizacionDetallePage({
           📄 Ver PDF
         </Link>
       </div>
+
+      {/* Banner de cotización legacy */}
+      {!snapshot && (
+        <div className="mb-6 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+          <strong>⚠️ Cotización previa al sistema de snapshots.</strong> Los datos
+          mostrados (paquete, zona, adicionales, cláusulas) son los actuales del
+          catálogo y pueden no coincidir con los originales entregados al cliente.
+        </div>
+      )}
 
       {/* HEADER */}
       <div className="mb-8 flex items-start justify-between gap-6">
@@ -195,14 +235,14 @@ export default async function CotizacionDetallePage({
             </div>
           )}
           <div className="flex gap-4 text-sm text-stone-500 mt-2 flex-wrap">
-            {ejecutivoResp.data && (
+            {ejecutivoDatos && (
               <span>
-                Ejecutivo: <strong className="text-stone-700">{ejecutivoResp.data.nombre}</strong>
+                Ejecutivo: <strong className="text-stone-700">{ejecutivoDatos.nombre}</strong>
               </span>
             )}
-            {wpResp.data && (
+            {wpDatos && (
               <span>
-                WP: <strong className="text-stone-700">{wpResp.data.nombre}</strong>
+                WP: <strong className="text-stone-700">{wpDatos.nombre}</strong>
               </span>
             )}
             <span>
@@ -226,8 +266,8 @@ export default async function CotizacionDetallePage({
 
       {/* EVENTOS */}
       {(c.eventos || []).map((evento, idx) => {
-        const zonaNombre = evento.zona_id ? zonasMap.get(evento.zona_id) : null
-        const paqueteNombre = evento.paquete_id ? paquetesMap.get(evento.paquete_id) : null
+        const zona = obtenerZona(evento.zona_id, snapshot, zonasCatalogo)
+        const paquete = obtenerPaquete(evento.paquete_id, snapshot, paquetesCatalogo)
         const pax = evento.pax || 0
         const subtotalPaqueteConFlete = (evento.subtotal_paquete || 0) + (evento.flete || 0)
         const fletePorPax = pax > 0 ? (evento.flete || 0) / pax : 0
@@ -260,9 +300,9 @@ export default async function CotizacionDetallePage({
               <div>
                 <div className="text-xs text-stone-500 mb-1">Locación</div>
                 <div className="text-stone-900">{evento.locacion_texto || '—'}</div>
-                {zonaNombre && (
+                {zona && (
                   <div className="text-xs text-stone-500">
-                    Zona {evento.zona_id} · {zonaNombre}
+                    Zona {evento.zona_id} · {zona.nombre}
                   </div>
                 )}
               </div>
@@ -272,14 +312,14 @@ export default async function CotizacionDetallePage({
               </div>
               <div>
                 <div className="text-xs text-stone-500 mb-1">Paquete</div>
-                <div className="text-stone-900">{paqueteNombre || '—'}</div>
+                <div className="text-stone-900">{paquete?.nombre || '—'}</div>
               </div>
             </div>
 
             <div className="border-t border-stone-100 pt-4 space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-stone-700">
-                  {paqueteNombre || 'Paquete'} · {pax} pax × ${precioPorPaxConFlete.toLocaleString('es-MX', { maximumFractionDigits: 2 })}
+                  {paquete?.nombre || 'Paquete'} · {pax} pax × ${precioPorPaxConFlete.toLocaleString('es-MX', { maximumFractionDigits: 2 })}
                 </span>
                 <span className="font-medium text-stone-900">
                   ${subtotalPaqueteConFlete.toLocaleString('es-MX')}
@@ -287,10 +327,11 @@ export default async function CotizacionDetallePage({
               </div>
 
               {(evento.adicionales || []).map((sel) => {
-                const esHoraExtra = sel.adicionalId === ID_HORA_EXTRA
-                const ad = esHoraExtra
-                  ? { nombre: 'Hora extra', unidad: 'hora' }
-                  : adicionalesMap.get(sel.adicionalId)
+                const ad = obtenerAdicional(
+                  sel.adicionalId,
+                  snapshot,
+                  adicionalesCatalogo
+                )
                 if (!ad) return null
                 const subtotal = sel.cantidad * sel.precioUnitario
                 const esCortesia = sel.precioUnitario === 0
