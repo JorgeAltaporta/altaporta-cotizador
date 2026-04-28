@@ -13,11 +13,13 @@ type EventoResumen = {
 
 export default function ResumenVivo({
   clienteNombre,
+  etiqueta,
   wpNombre,
   comisionPct,
   evento,
 }: {
   clienteNombre?: string
+  etiqueta?: string
   wpNombre?: string
   comisionPct?: number
   evento?: EventoResumen
@@ -34,7 +36,12 @@ export default function ResumenVivo({
         <div className="font-serif text-lg">
           {clienteNombre || 'Sin nombre'}
         </div>
-        {wpNombre && (
+        {etiqueta && (
+          <div className="text-xs text-amber-300 mt-1 font-mono leading-tight">
+            {etiqueta}
+          </div>
+        )}
+        {wpNombre && !etiqueta?.includes('WP') && (
           <div className="text-xs text-stone-400 mt-1">
             {wpNombre}
           </div>
@@ -65,7 +72,7 @@ export default function ResumenVivo({
               </div>
               {(evento.subtotalAdicionales || 0) > 0 && (
                 <div className="flex justify-between">
-                  <span className="text-stone-600">Adicionales</span>
+                  <span className="text-stone-600">Adicionales / ajustes</span>
                   <span className="text-stone-900">
                     ${(evento.subtotalAdicionales || 0).toLocaleString('es-MX')}
                   </span>
