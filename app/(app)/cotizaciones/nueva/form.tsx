@@ -17,6 +17,7 @@ import Step1Datos, {
   eventoVacio,
 } from './Step1Datos'
 import Step2Adicionales from './Step2Adicionales'
+import Step3Ajustes, { type Step3Data } from './Step3Ajustes'
 
 type Adicional = {
   id: string
@@ -34,6 +35,12 @@ type Categoria = {
   nombre: string
   icono: string | null
   orden: number
+}
+
+// Mapa de comisiones default por ejecutivo (basado en el sistema actual)
+const COMISION_EJECUTIVO_DEFAULT: Record<string, number> = {
+  // Por ahora, todos los ejecutivos tienen 1%
+  // Se puede cambiar a un campo en la tabla profiles después
 }
 
 export default function WizardCotizacionForm({
@@ -69,12 +76,24 @@ export default function WizardCotizacionForm({
     eventos: [eventoVacio()],
   })
 
+  const [ajustes, setAjustes] = useState<Step3Data>({
+    descuentoGeneral: null,
+    cargosExtra: [],
+    comisionEjecutivoOverride: null,
+    notasCliente: '',
+    vigenciaDias: 30,
+  })
+
   function actualizarData(cambios: Partial<Step1Data>) {
     setData({ ...data, ...cambios })
   }
 
   function actualizarEventos(eventos: EventoForm[]) {
     setData({ ...data, eventos })
+  }
+
+  function actualizarAjustes(cambios: Partial<Step3Data>) {
+    setAjustes({ ...ajustes, ...cambios })
   }
 
   // ─────────────────────────────────────────────────────────────────
@@ -154,7 +173,26 @@ export default function WizardCotizacionForm({
   const wp = weddingPlanners.find((w) => w.id === data.wpId)
   const comisionPct = data.comisionOverride ?? wp?.comision_default ?? 0
 
-  const totalGeneral = eventosConCalculo.reduce((sum, e) => sum + e.total, 0)
+  const subtotalEventos = eventosConCalculo.reduce((sum, e) => sum + e.total, 0)
+
+  // Aplicar descuento general
+  const descuentoAplicado = (() => {
+    if (!ajustes.descuentoGeneral) return 0
+    if (ajustes.descuentoGeneral.tipo === 'porcentaje') {
+      return subtotalEventos * (ajustes.descuentoGeneral.valor / 100)
+    }
+    return ajustes.descuentoGeneral.valor
+  })()
+
+  const totalCargosExtra = ajustes.cargosExtra.reduce((s, c) => s + c.monto, 0)
+
+  const totalGeneral = subtotalEventos - descuentoAplicado + totalCargosExtra
+
+  // Datos del ejecutivo
+  const ejecutivoSeleccionado = ejecutivos.find((e) => e.id === data.ejecutivoId)
+  const ejecutivoNombre = ejecutivoSeleccionado?.nombre ||
+    (usuario.rol === 'EJECUTIVO' ? usuario.nombre : null)
+  const comisionEjecutivoDefault = COMISION_EJECUTIVO_DEFAULT[data.ejecutivoId] ?? 1
 
   function validarStep1(): string | null {
     if (!data.clienteNombre.trim()) {
@@ -178,19 +216,17 @@ export default function WizardCotizacionForm({
     return null
   }
 
-  function handleSiguiente() {
+  function irStep(n: number) {
     setError(null)
-    const errVal = validarStep1()
-    if (errVal) {
-      setError(errVal)
-      return
+    if (n > 1) {
+      const errVal = validarStep1()
+      if (errVal) {
+        setError(errVal)
+        setStep(1)
+        return
+      }
     }
-    setStep(2)
-    window.scrollTo(0, 0)
-  }
-
-  function handleAnterior() {
-    setStep(1)
+    setStep(n)
     window.scrollTo(0, 0)
   }
 
@@ -286,10 +322,15 @@ export default function WizardCotizacionForm({
           folio,
           cliente_nombre: data.clienteNombre.trim(),
           notas_internas: data.notasInternas.trim() || null,
+          notas_cliente: ajustes.notasCliente.trim() || null,
           estado: usuario.puede_aprobar ? 'BORRADOR' : 'PENDIENTE',
           ejecutivo_id: data.ejecutivoId || null,
           wp_id: data.wpId === 'WP-DIRECTO' ? null : data.wpId,
           comision_override: data.comisionOverride,
+          comision_ejecutivo_override: ajustes.comisionEjecutivoOverride,
+          descuento_general: ajustes.descuentoGeneral,
+          cargos_extra: ajustes.cargosExtra,
+          vigencia_dias: ajustes.vigenciaDias,
           eventos: eventosParaGuardar,
           adicionales_globales: [],
           historial: [
@@ -315,7 +356,7 @@ export default function WizardCotizacionForm({
   }
 
   const resumenEvento = useMemo(() => {
-    if (totalGeneral === 0) return undefined
+    if (totalGeneral === 0 && subtotalEventos === 0) return undefined
     if (data.eventos.length === 1) {
       const e = eventosConCalculo[0]
       return {
@@ -325,9 +366,9 @@ export default function WizardCotizacionForm({
         zonaNombre: e.zonaActiva
           ? `Zona ${e.zonaActiva.id} · ${e.zonaActiva.nombre}`
           : undefined,
-        subtotalPaquete: e.subtotalPaquete + e.subtotalAdicionales,
+        subtotalPaquete: e.subtotalPaquete + e.subtotalAdicionales - descuentoAplicado + totalCargosExtra,
         flete: e.flete,
-        total: e.total,
+        total: totalGeneral,
       }
     }
     return {
@@ -336,7 +377,7 @@ export default function WizardCotizacionForm({
       paqueteNombre: 'Múltiples',
       total: totalGeneral,
     }
-  }, [data.eventos, eventosConCalculo, totalGeneral])
+  }, [data.eventos, eventosConCalculo, totalGeneral, descuentoAplicado, totalCargosExtra, subtotalEventos])
 
   return (
     <div>
@@ -344,11 +385,8 @@ export default function WizardCotizacionForm({
       <div className="mb-8">
         <Stepper
           step={step}
-          enabledSteps={[1, 2]}
-          onStepChange={(n) => {
-            if (n === 1) setStep(1)
-            if (n === 2) handleSiguiente()
-          }}
+          enabledSteps={[1, 2, 3]}
+          onStepChange={irStep}
         />
       </div>
 
@@ -380,6 +418,17 @@ export default function WizardCotizacionForm({
             />
           )}
 
+          {step === 3 && (
+            <Step3Ajustes
+              data={ajustes}
+              onChange={actualizarAjustes}
+              subtotalEventos={subtotalEventos}
+              comisionEjecutivoDefault={comisionEjecutivoDefault}
+              ejecutivoNombre={ejecutivoNombre}
+              puedeAprobar={usuario.puede_aprobar}
+            />
+          )}
+
           {error && (
             <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-sm">
               {error}
@@ -397,14 +446,34 @@ export default function WizardCotizacionForm({
               evento={resumenEvento}
             />
 
-            {step === 1 ? (
+            {/* Botones según paso */}
+            {step === 1 && (
               <button
-                onClick={handleSiguiente}
+                onClick={() => irStep(2)}
                 className="w-full bg-stone-900 hover:bg-stone-800 text-white px-6 py-2.5 rounded-lg transition font-medium"
               >
                 Siguiente: Adicionales →
               </button>
-            ) : (
+            )}
+
+            {step === 2 && (
+              <div className="space-y-2">
+                <button
+                  onClick={() => irStep(3)}
+                  className="w-full bg-stone-900 hover:bg-stone-800 text-white px-6 py-2.5 rounded-lg transition font-medium"
+                >
+                  Siguiente: Ajustes →
+                </button>
+                <button
+                  onClick={() => irStep(1)}
+                  className="w-full border border-stone-300 hover:bg-stone-50 text-stone-700 px-6 py-2 rounded-lg transition text-sm"
+                >
+                  ← Anterior
+                </button>
+              </div>
+            )}
+
+            {step === 3 && (
               <div className="space-y-2">
                 <button
                   onClick={handleCrear}
@@ -414,7 +483,7 @@ export default function WizardCotizacionForm({
                   {isPending ? 'Creando...' : 'Crear cotización'}
                 </button>
                 <button
-                  onClick={handleAnterior}
+                  onClick={() => irStep(2)}
                   className="w-full border border-stone-300 hover:bg-stone-50 text-stone-700 px-6 py-2 rounded-lg transition text-sm"
                 >
                   ← Anterior
