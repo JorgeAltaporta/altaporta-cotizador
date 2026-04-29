@@ -12,6 +12,8 @@ import {
   obtenerEjecutivo,
   tieneSnapshot,
 } from '@/lib/snapshot-cotizacion'
+import { type EntradaHistorial } from '@/lib/historial-cotizacion'
+import EstadoSelector from '../EstadoSelector'
 
 type AdicionalEvento = {
   id: string
@@ -68,14 +70,7 @@ type Cotizacion = {
   notas_internas: string | null
   fecha_creacion: string
   snapshot: unknown
-}
-
-const COLORES_ESTADO: Record<string, string> = {
-  BORRADOR: 'bg-stone-100 text-stone-700',
-  PENDIENTE: 'bg-amber-100 text-amber-700',
-  ENVIADA: 'bg-blue-100 text-blue-700',
-  APROBADA: 'bg-emerald-100 text-emerald-700',
-  CANCELADA: 'bg-rose-100 text-rose-700',
+  historial: EntradaHistorial[] | null
 }
 
 export default async function CotizacionDetallePage({
@@ -85,6 +80,16 @@ export default async function CotizacionDetallePage({
 }) {
   const { id } = await params
   const supabase = await createClient()
+
+  // Usuario actual (para registrar cambios de estado en historial)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const { data: profileActual } = await supabase
+    .from('profiles')
+    .select('id, nombre')
+    .eq('id', user!.id)
+    .single()
 
   const { data: cotizacion, error } = await supabase
     .from('cotizaciones')
@@ -221,13 +226,15 @@ export default async function CotizacionDetallePage({
       <div className="mb-8 flex items-start justify-between gap-6">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3 mb-2 flex-wrap">
-            <span
-              className={`text-xs px-2 py-1 rounded font-medium ${
-                COLORES_ESTADO[c.estado] || 'bg-stone-100 text-stone-700'
-              }`}
-            >
-              {c.estado}
-            </span>
+            {profileActual && (
+              <EstadoSelector
+                cotizacionId={c.id}
+                estadoActual={c.estado}
+                historialActual={c.historial}
+                usuario={{ id: profileActual.id, nombre: profileActual.nombre }}
+                size="small"
+              />
+            )}
             {c.folio && (
               <span className="text-xs tracking-widest text-stone-500 uppercase">
                 {c.folio}
