@@ -110,14 +110,6 @@ type CotizacionExistente = {
 
 const COMISION_EJECUTIVO_DEFAULT: Record<string, number> = {}
 
-const ESTADOS_OPCIONES = [
-  { value: 'BORRADOR', label: 'Borrador (en preparación)' },
-  { value: 'PENDIENTE', label: 'Pendiente (lista, sin enviar)' },
-  { value: 'ENVIADA', label: 'Enviada al cliente' },
-  { value: 'APROBADA', label: 'Aprobada por el cliente' },
-  { value: 'CANCELADA', label: 'Cancelada' },
-]
-
 export default function EditorCotizacionForm({
   cotizacion,
   usuario,
@@ -188,8 +180,9 @@ export default function EditorCotizacionForm({
     aplicaIva: cotizacion.aplica_iva !== false,
   }))
 
-  // Estado puede cambiarse desde el editor
-  const [estado, setEstado] = useState(cotizacion.estado)
+  // El estado NO se edita desde el editor — se cambia desde la lista o el detalle
+  // con el componente EstadoSelector. Aquí lo conservamos para preservarlo en el UPDATE.
+  const estado = cotizacion.estado
 
   function actualizarData(cambios: Partial<Step1Data>) {
     setData({ ...data, ...cambios })
@@ -598,40 +591,16 @@ export default function EditorCotizacionForm({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
           {step === 1 && (
-            <>
-              <Step1Datos
-                data={data}
-                onChange={actualizarData}
-                usuario={usuario}
-                paquetes={paquetes}
-                zonas={zonas}
-                rangos={rangos}
-                weddingPlanners={weddingPlanners}
-                ejecutivos={ejecutivos}
-              />
-
-              {/* Campo Estado — solo en editor, no en crear */}
-              <section className="bg-white rounded-2xl border border-stone-200 p-6">
-                <div className="mb-3">
-                  <h2 className="font-serif text-xl text-stone-900">Estado de la cotización</h2>
-                  <p className="text-sm text-stone-500">
-                    Cambia el estado manualmente. Los botones de "Enviar" y "Descargar"
-                    también pueden cambiarlo automáticamente.
-                  </p>
-                </div>
-                <select
-                  value={estado}
-                  onChange={(e) => setEstado(e.target.value)}
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-600"
-                >
-                  {ESTADOS_OPCIONES.map((op) => (
-                    <option key={op.value} value={op.value}>
-                      {op.label}
-                    </option>
-                  ))}
-                </select>
-              </section>
-            </>
+            <Step1Datos
+              data={data}
+              onChange={actualizarData}
+              usuario={usuario}
+              paquetes={paquetes}
+              zonas={zonas}
+              rangos={rangos}
+              weddingPlanners={weddingPlanners}
+              ejecutivos={ejecutivos}
+            />
           )}
 
           {step === 2 && (
