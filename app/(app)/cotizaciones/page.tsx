@@ -88,6 +88,9 @@ export default async function CotizacionesPage() {
                 <th className="text-right px-6 py-3 text-xs font-medium text-stone-700 uppercase tracking-wider">
                   Creación
                 </th>
+                <th className="text-right px-6 py-3 text-xs font-medium text-stone-700 uppercase tracking-wider">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -137,6 +140,15 @@ export default async function CotizacionesPage() {
                         month: 'short',
                         year: 'numeric',
                       })}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <Link
+                        href={`/cotizaciones/${c.id}/editar`}
+                        className="inline-flex items-center gap-1 text-sm text-stone-600 hover:text-amber-700 hover:bg-amber-50 px-2 py-1 rounded transition"
+                        title="Editar cotización"
+                      >
+                        ✏️
+                      </Link>
                     </td>
                   </tr>
                 )
