@@ -14,6 +14,7 @@ import {
 } from '@/lib/snapshot-cotizacion'
 import { type EntradaHistorial } from '@/lib/historial-cotizacion'
 import EstadoSelector from '../EstadoSelector'
+import HistorialAcordeon from '../HistorialAcordeon'
 
 type AdicionalEvento = {
   id: string
@@ -477,6 +478,9 @@ export default async function CotizacionDetallePage({
           <p className="text-sm text-amber-900 whitespace-pre-wrap">{c.notas_internas}</p>
         </section>
       )}
+
+      {/* HISTORIAL DE CAMBIOS (acordeón plegable) */}
+      <HistorialAcordeon historial={c.historial} />
     </div>
   )
 }
