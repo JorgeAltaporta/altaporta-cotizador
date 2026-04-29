@@ -192,12 +192,20 @@ export default async function CotizacionDetallePage({
         <Link href="/cotizaciones" className="text-sm text-amber-700 hover:underline">
           ← Volver a cotizaciones
         </Link>
-        <Link
-          href={`/cotizaciones/${c.id}/pdf`}
-          className="bg-amber-700 hover:bg-amber-800 text-white px-5 py-2 rounded-lg font-medium text-sm transition flex items-center gap-2"
-        >
-          📄 Ver PDF
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href={`/cotizaciones/${c.id}/editar`}
+            className="border border-stone-300 hover:bg-stone-50 text-stone-700 px-5 py-2 rounded-lg font-medium text-sm transition flex items-center gap-2"
+          >
+            ✏️ Editar
+          </Link>
+          <Link
+            href={`/cotizaciones/${c.id}/pdf`}
+            className="bg-amber-700 hover:bg-amber-800 text-white px-5 py-2 rounded-lg font-medium text-sm transition flex items-center gap-2"
+          >
+            📄 Ver PDF
+          </Link>
+        </div>
       </div>
 
       {/* Banner de cotización legacy */}
