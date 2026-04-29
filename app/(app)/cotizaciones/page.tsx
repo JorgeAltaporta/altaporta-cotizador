@@ -1,13 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
-
-const COLORES_ESTADO: Record<string, string> = {
-  BORRADOR: 'bg-stone-100 text-stone-700',
-  PENDIENTE: 'bg-amber-100 text-amber-700',
-  ENVIADA: 'bg-blue-100 text-blue-700',
-  APROBADA: 'bg-emerald-100 text-emerald-700',
-  CANCELADA: 'bg-rose-100 text-rose-700',
-}
+import EstadoSelector from './EstadoSelector'
+import type { EntradaHistorial } from '@/lib/historial-cotizacion'
 
 type Evento = { total?: number }
 
@@ -20,14 +14,27 @@ type Cotizacion = {
   eventos: Evento[] | null
   fecha_creacion: string
   aplica_iva: boolean | null
+  historial: EntradaHistorial[] | null
 }
 
 export default async function CotizacionesPage() {
   const supabase = await createClient()
 
+  // Usuario actual para registrar cambios de estado en el historial
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('id, nombre')
+    .eq('id', user!.id)
+    .single()
+
   const { data: cotizaciones } = await supabase
     .from('cotizaciones')
-    .select('id, folio, etiqueta, cliente_nombre, estado, eventos, fecha_creacion, aplica_iva')
+    .select(
+      'id, folio, etiqueta, cliente_nombre, estado, eventos, fecha_creacion, aplica_iva, historial'
+    )
     .order('fecha_creacion', { ascending: false })
 
   const lista = (cotizaciones || []) as Cotizacion[]
@@ -121,13 +128,15 @@ export default async function CotizacionesPage() {
                       </Link>
                     </td>
                     <td className="px-6 py-4">
-                      <span
-                        className={`text-xs px-2 py-1 rounded font-medium ${
-                          COLORES_ESTADO[c.estado] || 'bg-stone-100 text-stone-700'
-                        }`}
-                      >
-                        {c.estado}
-                      </span>
+                      {profile && (
+                        <EstadoSelector
+                          cotizacionId={c.id}
+                          estadoActual={c.estado}
+                          historialActual={c.historial}
+                          usuario={{ id: profile.id, nombre: profile.nombre }}
+                          size="small"
+                        />
+                      )}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="text-sm font-medium text-stone-900">
