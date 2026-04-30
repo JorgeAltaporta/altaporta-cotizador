@@ -13,7 +13,6 @@ type Usuario = {
   nombre: string
 }
 
-// Estados que disparan la pregunta "¿marcar como ENVIADA?"
 const ESTADOS_PRE_ENVIO = ['BORRADOR', 'PENDIENTE']
 
 export default function AccionesCotizacion({
@@ -34,25 +33,18 @@ export default function AccionesCotizacion({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
-  // Estado del modal: null = cerrado, 'pdf' o 'whatsapp' = abierto con esa intención
   const [modal, setModal] = useState<null | 'pdf' | 'whatsapp'>(null)
 
-  // ── URLs ───────────────────────────────────────────────────────────────────
-  // PDF interno (con login) — el ejecutivo ve el PDF aquí, lo descarga, y lo
-  // adjunta manualmente al chat de WhatsApp.
   const urlPDFInterno = `/cotizaciones/${cotizacionId}/pdf`
 
-  // Texto preformateado para WhatsApp (sin link — el ejecutivo adjunta el PDF manualmente)
   const totalFormateado = total.toLocaleString('es-MX', {
     maximumFractionDigits: 2,
   })
-  const mensajeWhatsApp = `Hola ${clienteNombre}, te comparto la cotización por $${totalFormateado}`
+  const mensajeWhatsApp = `Hola ${clienteNombre}, te comparto la cotizacion por $${totalFormateado}`
   const urlWhatsApp = `https://wa.me/?text=${encodeURIComponent(mensajeWhatsApp)}`
 
-  // ── Decidir si la acción debe preguntar o no ──────────────────────────────
   const debePreguntar = ESTADOS_PRE_ENVIO.includes(estadoActual)
 
-  // ── Marcar como ENVIADA en BD ─────────────────────────────────────────────
   async function marcarComoEnviada(accionLog: 'DESCARGADA' | 'ENVIADA') {
     const supabase = createClient()
 
@@ -70,8 +62,8 @@ export default function AccionesCotizacion({
       ],
       detalle:
         accionLog === 'DESCARGADA'
-          ? 'Descargó el PDF y marcó la cotización como enviada'
-          : 'Compartió la cotización por WhatsApp',
+          ? 'Descargo el PDF y marco como enviada'
+          : 'Compartio por WhatsApp',
     })
 
     const historialActualizado = [
@@ -90,7 +82,6 @@ export default function AccionesCotizacion({
     router.refresh()
   }
 
-  // ── Solo registrar acción sin cambiar estado ──────────────────────────────
   async function registrarAccion(accionLog: 'DESCARGADA' | 'ENVIADA') {
     const supabase = createClient()
 
@@ -100,8 +91,8 @@ export default function AccionesCotizacion({
       usuario_nombre: usuario.nombre,
       detalle:
         accionLog === 'DESCARGADA'
-          ? 'Descargó el PDF'
-          : 'Compartió la cotización por WhatsApp',
+          ? 'Descargo el PDF'
+          : 'Compartio por WhatsApp',
     })
 
     if (!entrada) return
@@ -118,23 +109,17 @@ export default function AccionesCotizacion({
     router.refresh()
   }
 
-  // ── Helper: abrir PDF + WhatsApp en una sola acción ──────────────────────
-  // El PDF se abre en una pestaña nueva (el browser decide descargar o mostrar).
-  // El usuario adjunta manualmente el PDF al chat de WhatsApp.
   function abrirPDFYWhatsApp() {
-    // Pequeño retraso para que ambas pestañas se abran sin que el browser bloquee popups
     window.open(urlPDFInterno, '_blank')
     setTimeout(() => {
       window.open(urlWhatsApp, '_blank')
     }, 100)
   }
 
-  // ── Click en "Ver PDF" ────────────────────────────────────────────────────
   function handleClickPDF() {
     if (debePreguntar) {
       setModal('pdf')
     } else {
-      // No preguntar — registrar y abrir
       startTransition(async () => {
         await registrarAccion('DESCARGADA')
         window.open(urlPDFInterno, '_blank')
@@ -142,12 +127,10 @@ export default function AccionesCotizacion({
     }
   }
 
-  // ── Click en "WhatsApp" ───────────────────────────────────────────────────
   function handleClickWhatsApp() {
     if (debePreguntar) {
       setModal('whatsapp')
     } else {
-      // No preguntar — registrar, descargar PDF + abrir WhatsApp
       startTransition(async () => {
         await registrarAccion('ENVIADA')
         abrirPDFYWhatsApp()
@@ -155,10 +138,8 @@ export default function AccionesCotizacion({
     }
   }
 
-  // ── Decisión del modal ────────────────────────────────────────────────────
-
   function modalConfirmar() {
-    const intencion = modal // 'pdf' o 'whatsapp'
+    const intencion = modal
     setModal(null)
     startTransition(async () => {
       await marcarComoEnviada(intencion === 'pdf' ? 'DESCARGADA' : 'ENVIADA')
@@ -187,6 +168,26 @@ export default function AccionesCotizacion({
     setModal(null)
   }
 
+  const tituloModal =
+    modal === 'pdf'
+      ? 'Vas a enviar el PDF al cliente?'
+      : 'Vas a enviarlo por WhatsApp?'
+
+  const descripcionModal =
+    modal === 'pdf'
+      ? 'Si lo vas a enviar al cliente, marcamos la cotizacion como ENVIADA. Si solo quieres revisarlo, deja el estado como esta.'
+      : 'Vamos a abrir el PDF y WhatsApp en pestanas separadas para que adjuntes el PDF manualmente al chat. Al confirmar tambien marcamos la cotizacion como ENVIADA.'
+
+  const labelConfirmar =
+    modal === 'pdf'
+      ? 'Si, descargar y marcar como ENVIADA'
+      : 'Si, abrir PDF + WhatsApp y marcar como ENVIADA'
+
+  const labelRechazar =
+    modal === 'pdf'
+      ? 'Solo revisar (no cambiar estado)'
+      : 'Abrir PDF + WhatsApp sin marcar como ENVIADA'
+
   return (
     <>
       <div className="flex items-center gap-2 flex-wrap">
@@ -195,18 +196,17 @@ export default function AccionesCotizacion({
           disabled={isPending}
           className="border border-emerald-300 hover:bg-emerald-50 text-emerald-700 px-5 py-2 rounded-lg font-medium text-sm transition flex items-center gap-2 disabled:opacity-50"
         >
-          💬 WhatsApp
+          WhatsApp
         </button>
         <button
           onClick={handleClickPDF}
           disabled={isPending}
           className="bg-amber-700 hover:bg-amber-800 text-white px-5 py-2 rounded-lg font-medium text-sm transition flex items-center gap-2 disabled:opacity-50"
         >
-          📄 Ver PDF
+          Ver PDF
         </button>
       </div>
 
-      {/* MODAL ───────────────────────────────────────────────────────────── */}
       {modal !== null && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
@@ -216,15 +216,39 @@ export default function AccionesCotizacion({
             className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-3xl mb-3">
-              {modal === 'pdf' ? '📄' : '💬'}
-            </div>
             <h2 className="font-serif text-2xl text-stone-900 mb-2">
-              {modal === 'pdf'
-                ? '¿Vas a enviar el PDF al cliente?'
-                : '¿Vas a enviarlo por WhatsApp?'}
+              {tituloModal}
             </h2>
             <p className="text-sm text-stone-600 mb-5">
-              {modal === 'pdf'
-                ? 'Si lo vas a enviar al cliente, marcamos la cotización como ENVIADA. Si solo quieres revisarlo tú, deja el estado como está.'
-                : 'Vamos a abrir el PDF y WhatsApp en pestañas separadas para que adjuntes el PDF manualmente al ch
+              {descripcionModal}
+            </p>
+
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={modalConfirmar}
+                disabled={isPending}
+                className="w-full bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white px-5 py-2.5 rounded-lg font-medium text-sm transition"
+              >
+                {labelConfirmar}
+              </button>
+              <button
+                onClick={modalRechazar}
+                disabled={isPending}
+                className="w-full border border-stone-300 hover:bg-stone-50 disabled:opacity-50 text-stone-700 px-5 py-2.5 rounded-lg font-medium text-sm transition"
+              >
+                {labelRechazar}
+              </button>
+              <button
+                onClick={modalCancelar}
+                disabled={isPending}
+                className="w-full text-stone-500 hover:text-stone-700 text-sm pt-1 transition"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
