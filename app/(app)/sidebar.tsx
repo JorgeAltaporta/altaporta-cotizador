@@ -17,7 +17,7 @@ const NAV_ITEMS = [
   { label: 'Wedding Planners', href: '/wps',               icon: '👥' },
   { label: 'Ejecutivos',       href: '/ejecutivos',        icon: '🏆' },
   { label: 'Métricas',         href: '/metricas',          icon: '📊' },
-  { label: 'Catálogo',         href: '/catalogo',          icon: '📦' },
+  { label: 'Configuración',    href: '/catalogo',          icon: '📦' },
 ]
 
 export default function Sidebar({ nombre, rol, color }: SidebarProps) {
