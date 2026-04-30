@@ -32,13 +32,13 @@ export default async function ClausulasPage() {
     <div className="p-12 max-w-3xl">
       <div className="mb-8">
         <Link href="/catalogo" className="text-sm text-amber-700 hover:underline">
-          ← Volver al catálogo
+          ← Volver a configuración
         </Link>
       </div>
 
       <div className="mb-8">
         <div className="text-xs tracking-widest text-amber-700 uppercase mb-2">
-          Catálogo
+          Configuración · Cláusulas
         </div>
         <h1 className="font-serif text-4xl text-stone-900">Cláusulas globales</h1>
         <p className="text-stone-600 mt-2">
