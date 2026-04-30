@@ -18,7 +18,6 @@ const ESTADOS_PRE_ENVIO = ['BORRADOR', 'PENDIENTE']
 
 export default function AccionesCotizacion({
   cotizacionId,
-  tokenPublico,
   estadoActual,
   clienteNombre,
   total,
@@ -26,7 +25,6 @@ export default function AccionesCotizacion({
   usuario,
 }: {
   cotizacionId: string
-  tokenPublico: string
   estadoActual: string
   clienteNombre: string
   total: number
@@ -40,20 +38,15 @@ export default function AccionesCotizacion({
   const [modal, setModal] = useState<null | 'pdf' | 'whatsapp'>(null)
 
   // ── URLs ───────────────────────────────────────────────────────────────────
-  // PDF interno (con login) — para que los ejecutivos lo vean en navegador
+  // PDF interno (con login) — el ejecutivo ve el PDF aquí, lo descarga, y lo
+  // adjunta manualmente al chat de WhatsApp.
   const urlPDFInterno = `/cotizaciones/${cotizacionId}/pdf`
-  // PDF público (con token) — para compartir con el cliente por WhatsApp
-  const urlPDFPublico = `/p/${tokenPublico}/pdf`
-  const urlPDFPublicoAbsoluta =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}${urlPDFPublico}`
-      : urlPDFPublico
 
-  // Texto preformateado para WhatsApp
+  // Texto preformateado para WhatsApp (sin link — el ejecutivo adjunta el PDF manualmente)
   const totalFormateado = total.toLocaleString('es-MX', {
     maximumFractionDigits: 2,
   })
-  const mensajeWhatsApp = `Hola ${clienteNombre}, te comparto la cotización por $${totalFormateado}: ${urlPDFPublicoAbsoluta}`
+  const mensajeWhatsApp = `Hola ${clienteNombre}, te comparto la cotización por $${totalFormateado}`
   const urlWhatsApp = `https://wa.me/?text=${encodeURIComponent(mensajeWhatsApp)}`
 
   // ── Decidir si la acción debe preguntar o no ──────────────────────────────
@@ -125,6 +118,17 @@ export default function AccionesCotizacion({
     router.refresh()
   }
 
+  // ── Helper: abrir PDF + WhatsApp en una sola acción ──────────────────────
+  // El PDF se abre en una pestaña nueva (el browser decide descargar o mostrar).
+  // El usuario adjunta manualmente el PDF al chat de WhatsApp.
+  function abrirPDFYWhatsApp() {
+    // Pequeño retraso para que ambas pestañas se abran sin que el browser bloquee popups
+    window.open(urlPDFInterno, '_blank')
+    setTimeout(() => {
+      window.open(urlWhatsApp, '_blank')
+    }, 100)
+  }
+
   // ── Click en "Ver PDF" ────────────────────────────────────────────────────
   function handleClickPDF() {
     if (debePreguntar) {
@@ -143,10 +147,10 @@ export default function AccionesCotizacion({
     if (debePreguntar) {
       setModal('whatsapp')
     } else {
-      // No preguntar — registrar y abrir
+      // No preguntar — registrar, descargar PDF + abrir WhatsApp
       startTransition(async () => {
         await registrarAccion('ENVIADA')
-        window.open(urlWhatsApp, '_blank')
+        abrirPDFYWhatsApp()
       })
     }
   }
@@ -158,7 +162,11 @@ export default function AccionesCotizacion({
     setModal(null)
     startTransition(async () => {
       await marcarComoEnviada(intencion === 'pdf' ? 'DESCARGADA' : 'ENVIADA')
-      window.open(intencion === 'pdf' ? urlPDFInterno : urlWhatsApp, '_blank')
+      if (intencion === 'pdf') {
+        window.open(urlPDFInterno, '_blank')
+      } else {
+        abrirPDFYWhatsApp()
+      }
     })
   }
 
@@ -167,7 +175,11 @@ export default function AccionesCotizacion({
     setModal(null)
     startTransition(async () => {
       await registrarAccion(intencion === 'pdf' ? 'DESCARGADA' : 'ENVIADA')
-      window.open(intencion === 'pdf' ? urlPDFInterno : urlWhatsApp, '_blank')
+      if (intencion === 'pdf') {
+        window.open(urlPDFInterno, '_blank')
+      } else {
+        abrirPDFYWhatsApp()
+      }
     })
   }
 
@@ -215,39 +227,4 @@ export default function AccionesCotizacion({
             <p className="text-sm text-stone-600 mb-5">
               {modal === 'pdf'
                 ? 'Si lo vas a enviar al cliente, marcamos la cotización como ENVIADA. Si solo quieres revisarlo tú, deja el estado como está.'
-                : 'Al confirmar, se marca la cotización como ENVIADA y se registra en el historial.'}
-            </p>
-
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={modalConfirmar}
-                disabled={isPending}
-                className="w-full bg-amber-700 hover:bg-amber-800 disabled:opacity-50 text-white px-5 py-2.5 rounded-lg font-medium text-sm transition"
-              >
-                {modal === 'pdf'
-                  ? 'Sí, descargar y marcar como ENVIADA'
-                  : 'Sí, abrir WhatsApp y marcar como ENVIADA'}
-              </button>
-              <button
-                onClick={modalRechazar}
-                disabled={isPending}
-                className="w-full border border-stone-300 hover:bg-stone-50 disabled:opacity-50 text-stone-700 px-5 py-2.5 rounded-lg font-medium text-sm transition"
-              >
-                {modal === 'pdf'
-                  ? 'Solo revisar (no cambiar estado)'
-                  : 'Abrir sin marcar como ENVIADA'}
-              </button>
-              <button
-                onClick={modalCancelar}
-                disabled={isPending}
-                className="w-full text-stone-500 hover:text-stone-700 text-sm pt-1 transition"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </>
-  )
-}
+                : 'Vamos a abrir el PDF y WhatsApp en pestañas separadas para que adjuntes el PDF manualmente al ch
