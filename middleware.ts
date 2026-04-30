@@ -34,7 +34,7 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // Rutas públicas (no requieren login)
-  const rutasPublicas = ['/login', '/auth']
+  const rutasPublicas = ['/login', '/auth', '/p/']
   const esRutaPublica = rutasPublicas.some((ruta) =>
     request.nextUrl.pathname.startsWith(ruta)
   )
