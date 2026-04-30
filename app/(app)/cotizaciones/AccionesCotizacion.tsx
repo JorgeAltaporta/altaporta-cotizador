@@ -109,20 +109,23 @@ export default function AccionesCotizacion({
     router.refresh()
   }
 
+  // ── Helper: abrir PDF + WhatsApp en una sola accion ──────────────────────
+  // ORDEN IMPORTANTE: WhatsApp PRIMERO porque debe ser respuesta directa al
+  // click del usuario para que el browser no bloquee el popup. El PDF lo
+  // abrimos despues en otra pestana.
   function abrirPDFYWhatsApp() {
+    window.open(urlWhatsApp, '_blank')
     window.open(urlPDFInterno, '_blank')
-    setTimeout(() => {
-      window.open(urlWhatsApp, '_blank')
-    }, 100)
   }
 
   function handleClickPDF() {
     if (debePreguntar) {
       setModal('pdf')
     } else {
+      // No preguntar — abrir pestana PRIMERO, BD update en background
+      window.open(urlPDFInterno, '_blank')
       startTransition(async () => {
         await registrarAccion('DESCARGADA')
-        window.open(urlPDFInterno, '_blank')
       })
     }
   }
@@ -131,9 +134,11 @@ export default function AccionesCotizacion({
     if (debePreguntar) {
       setModal('whatsapp')
     } else {
+      // No preguntar — abrir pestanas PRIMERO (parte del user gesture),
+      // BD update va en background.
+      abrirPDFYWhatsApp()
       startTransition(async () => {
         await registrarAccion('ENVIADA')
-        abrirPDFYWhatsApp()
       })
     }
   }
@@ -141,26 +146,30 @@ export default function AccionesCotizacion({
   function modalConfirmar() {
     const intencion = modal
     setModal(null)
+    // Abrir pestanas PRIMERO (parte del user gesture del click en el boton del modal)
+    if (intencion === 'pdf') {
+      window.open(urlPDFInterno, '_blank')
+    } else {
+      abrirPDFYWhatsApp()
+    }
+    // BD update en background
     startTransition(async () => {
       await marcarComoEnviada(intencion === 'pdf' ? 'DESCARGADA' : 'ENVIADA')
-      if (intencion === 'pdf') {
-        window.open(urlPDFInterno, '_blank')
-      } else {
-        abrirPDFYWhatsApp()
-      }
     })
   }
 
   function modalRechazar() {
     const intencion = modal
     setModal(null)
+    // Abrir pestanas PRIMERO
+    if (intencion === 'pdf') {
+      window.open(urlPDFInterno, '_blank')
+    } else {
+      abrirPDFYWhatsApp()
+    }
+    // BD update en background (solo registrar, sin cambiar estado)
     startTransition(async () => {
       await registrarAccion(intencion === 'pdf' ? 'DESCARGADA' : 'ENVIADA')
-      if (intencion === 'pdf') {
-        window.open(urlPDFInterno, '_blank')
-      } else {
-        abrirPDFYWhatsApp()
-      }
     })
   }
 
