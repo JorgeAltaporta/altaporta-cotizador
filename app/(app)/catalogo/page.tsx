@@ -83,9 +83,9 @@ export default function CatalogoPage() {
     <div className="p-12 max-w-5xl">
       <div className="mb-8">
         <div className="text-xs tracking-widest text-amber-700 uppercase mb-2">
-          Catálogo
-        </div>
-        <h1 className="font-serif text-4xl text-stone-900">Catálogo de servicios</h1>
+             Configuración
+           </div>
+           <h1 className="font-serif text-4xl text-stone-900">Configuración de servicios</h1>
         <p className="text-stone-600 mt-2">
           Configura paquetes, proteínas, zonas, adicionales y términos.
         </p>
