@@ -43,14 +43,14 @@ export default async function PaquetesPage() {
     <div className="p-12 max-w-6xl">
       <div className="mb-8">
         <Link href="/catalogo" className="text-sm text-amber-700 hover:underline">
-          ← Volver al catálogo
+          ← Volver a configuración
         </Link>
       </div>
 
       <div className="mb-10 flex items-start justify-between">
         <div>
           <div className="text-xs tracking-widest text-amber-700 uppercase mb-2">
-            Catálogo · Paquetes
+            Configuración · Paquetes
           </div>
           <h1 className="font-serif text-4xl text-stone-900">
             Paquetes
