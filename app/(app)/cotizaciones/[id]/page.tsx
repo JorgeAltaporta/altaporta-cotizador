@@ -210,7 +210,6 @@ export default async function CotizacionDetallePage({
           {profileActual && (
             <AccionesCotizacion
               cotizacionId={c.id}
-              tokenPublico={c.token_publico}
               estadoActual={c.estado}
               clienteNombre={c.cliente_nombre}
               total={totalCotizacion}
