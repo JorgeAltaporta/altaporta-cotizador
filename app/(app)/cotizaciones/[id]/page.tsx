@@ -15,6 +15,7 @@ import {
 import { type EntradaHistorial } from '@/lib/historial-cotizacion'
 import EstadoSelector from '../EstadoSelector'
 import HistorialAcordeon from '../HistorialAcordeon'
+import AccionesCotizacion from '../AccionesCotizacion'
 
 type AdicionalEvento = {
   id: string
@@ -72,6 +73,7 @@ type Cotizacion = {
   fecha_creacion: string
   snapshot: unknown
   historial: EntradaHistorial[] | null
+  token_publico: string
 }
 
 export default async function CotizacionDetallePage({
@@ -205,12 +207,17 @@ export default async function CotizacionDetallePage({
           >
             ✏️ Editar
           </Link>
-          <Link
-            href={`/cotizaciones/${c.id}/pdf`}
-            className="bg-amber-700 hover:bg-amber-800 text-white px-5 py-2 rounded-lg font-medium text-sm transition flex items-center gap-2"
-          >
-            📄 Ver PDF
-          </Link>
+          {profileActual && (
+            <AccionesCotizacion
+              cotizacionId={c.id}
+              tokenPublico={c.token_publico}
+              estadoActual={c.estado}
+              clienteNombre={c.cliente_nombre}
+              total={totalCotizacion}
+              historialActual={c.historial}
+              usuario={{ id: profileActual.id, nombre: profileActual.nombre }}
+            />
+          )}
         </div>
       </div>
 
