@@ -22,7 +22,6 @@ export default function LeadCard({ lead }: Props) {
   const tel = telefonoNumerico(lead.telefono)
   const waUrl = `https://wa.me/52${tel}`
 
-  // Color del borde izquierdo según urgencia
   const borderColor = urgente
     ? 'border-l-rose-500'
     : lead.estado === 'NUEVO'
