@@ -6,12 +6,10 @@ import { obtenerConfigGlobal } from '@/lib/leads/queries'
 import type { CanalLead, EstadoLead, TipoEvento } from '@/lib/types/leads'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// SERVER ACTIONS para captura de leads
+// TIPOS PÚBLICOS
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ESTADOS_ACTIVOS: EstadoLead[] = ['NUEVO', 'COTIZADO', 'SEGUIMIENTO', 'NEGOCIACION']
-
-type ResultadoCrear = {
+export type ResultadoCrear = {
   ok: boolean
   error?: string
   leadId?: string
@@ -22,7 +20,7 @@ type ResultadoCrear = {
   umbralActual?: number
 }
 
-type DatosLead = {
+export type DatosLead = {
   canal: CanalLead
   nombre: string
   telefono: string
@@ -35,9 +33,45 @@ type DatosLead = {
   wp_id?: string
 }
 
-/**
- * Genera el siguiente ID de lead disponible (formato L-NNN)
- */
+export type OpcionesCrear = {
+  forzarEjecutivo?: string
+  confirmarSobrecarga?: boolean
+}
+
+export type CriteriosDuplicados = {
+  telefono?: string
+  email?: string
+  nombre?: string
+  fecha_evento?: string
+  locacion?: string
+}
+
+export type LeadDuplicado = {
+  id: string
+  nombre: string
+  estado: EstadoLead
+  razon: string
+}
+
+export type WPParaCaptura = {
+  id: string
+  nombre: string
+  verificado: boolean
+}
+
+export type CargaEjecutivo = {
+  id: string
+  nombre: string
+  color: string | null
+  carga: number
+}
+
+const ESTADOS_ACTIVOS: EstadoLead[] = ['NUEVO', 'COTIZADO', 'SEGUIMIENTO', 'NEGOCIACION']
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPERS INTERNOS (no exportados)
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function generarSiguienteId(): Promise<string> {
   const supabase = await createClient()
   const { data } = await supabase
@@ -48,29 +82,21 @@ async function generarSiguienteId(): Promise<string> {
     .limit(1)
 
   if (!data || data.length === 0) return 'L-001'
-
-  const ultimo = data[0].id // ej: "L-042"
+  const ultimo = data[0].id
   const num = parseInt(ultimo.replace('L-', ''), 10) + 1
   return `L-${String(num).padStart(3, '0')}`
 }
 
-/**
- * Determina qué ejecutivo debe quedarse el lead según las reglas:
- * - Si captura JORGE/DANNA (puede_aprobar=true) → round-robin entre ejecutivos
- * - Si captura un ejecutivo → se queda el lead él mismo
- */
 async function determinarEjecutivo(
   capturadorId: string,
   forzarEjecutivo?: string
 ): Promise<{ ejecutivoId: string; metodo: 'self' | 'round-robin' | 'manual' } | null> {
   const supabase = await createClient()
 
-  // Si quien captura forzó manualmente el ejecutivo (modal de sobrecarga)
   if (forzarEjecutivo) {
     return { ejecutivoId: forzarEjecutivo, metodo: 'manual' }
   }
 
-  // Obtener perfil del que captura
   const { data: capturador } = await supabase
     .from('profiles')
     .select('id, rol, puede_aprobar')
@@ -79,7 +105,6 @@ async function determinarEjecutivo(
 
   if (!capturador) return null
 
-  // Si es aprobador (Jorge/Danna) → round-robin entre ejecutivos
   if (capturador.puede_aprobar) {
     const { data: ejecutivos } = await supabase
       .from('profiles')
@@ -87,11 +112,9 @@ async function determinarEjecutivo(
       .eq('rol', 'EJECUTIVO')
 
     if (!ejecutivos || ejecutivos.length === 0) {
-      // Si no hay ejecutivos, asignar al mismo capturador
       return { ejecutivoId: capturador.id, metodo: 'self' }
     }
 
-    // Round-robin: contar leads por ejecutivo y elegir el de menor carga
     const cargas = await Promise.all(
       ejecutivos.map(async (e) => {
         const { count } = await supabase
@@ -107,23 +130,19 @@ async function determinarEjecutivo(
     return { ejecutivoId: cargas[0].id, metodo: 'round-robin' }
   }
 
-  // Si es ejecutivo → se queda el lead él
   return { ejecutivoId: capturador.id, metodo: 'self' }
 }
 
-/**
- * Crea un lead nuevo con todas las validaciones y reglas de asignación.
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// SERVER ACTIONS (exportadas)
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function crearLead(
   datos: DatosLead,
-  opciones?: {
-    forzarEjecutivo?: string  // Si el ejecutivo decidió pasarle el lead a otro tras alerta
-    confirmarSobrecarga?: boolean  // True si el ejecutivo aceptó quedárselo a pesar de sobrecarga
-  }
+  opciones?: OpcionesCrear
 ): Promise<ResultadoCrear> {
   const supabase = await createClient()
 
-  // Usuario actual
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -131,7 +150,6 @@ export async function crearLead(
     return { ok: false, error: 'No hay usuario autenticado' }
   }
 
-  // Validaciones básicas
   if (!datos.nombre.trim()) {
     return { ok: false, error: 'El nombre es obligatorio' }
   }
@@ -139,14 +157,11 @@ export async function crearLead(
     return { ok: false, error: 'El teléfono es obligatorio' }
   }
 
-  // Determinar ejecutivo
   const asignacion = await determinarEjecutivo(user.id, opciones?.forzarEjecutivo)
   if (!asignacion) {
     return { ok: false, error: 'No se pudo determinar el ejecutivo' }
   }
 
-  // Si el ejecutivo va a quedarse el lead (método self) y NO ha confirmado sobrecarga,
-  // verificar si está sobrecargado
   if (asignacion.metodo === 'self' && !opciones?.confirmarSobrecarga && !opciones?.forzarEjecutivo) {
     const umbral = await obtenerConfigGlobal<number>('leads_umbral_sobrecarga', 20)
     const { count } = await supabase
@@ -166,24 +181,20 @@ export async function crearLead(
     }
   }
 
-  // Obtener nombre del ejecutivo asignado
   const { data: ejecProfile } = await supabase
     .from('profiles')
     .select('nombre')
     .eq('id', asignacion.ejecutivoId)
     .maybeSingle()
 
-  // Obtener nombre del capturador (para la nota)
   const { data: capturadorProfile } = await supabase
     .from('profiles')
     .select('nombre')
     .eq('id', user.id)
     .maybeSingle()
 
-  // Generar ID único
   const id = await generarSiguienteId()
 
-  // Crear lead
   const { error: errInsert } = await supabase.from('leads').insert({
     id,
     canal: datos.canal,
@@ -206,7 +217,6 @@ export async function crearLead(
     return { ok: false, error: 'Error al crear el lead' }
   }
 
-  // Crear nota inicial del sistema
   const motivo =
     asignacion.metodo === 'round-robin'
       ? '(round-robin)'
@@ -224,7 +234,6 @@ export async function crearLead(
     autor_nombre: capturadorProfile?.nombre ?? null,
   })
 
-  // Refrescar el cache
   revalidatePath('/leads')
 
   return {
@@ -235,32 +244,10 @@ export async function crearLead(
   }
 }
 
-/**
- * Busca posibles leads duplicados según los criterios:
- * 1. Mismo teléfono o email (alta probabilidad)
- * 2. Misma fecha + locación (probable mismo evento)
- * 3. Mismo nombre + fecha (revisar)
- *
- * Solo busca entre leads ACTIVOS (no GANADO ni PERDIDO).
- */
-export async function buscarDuplicados(criterios: {
-  telefono?: string
-  email?: string
-  nombre?: string
-  fecha_evento?: string
-  locacion?: string
-}): Promise
-  Array<{
-    id: string
-    nombre: string
-    estado: EstadoLead
-    razon: string
-  }>
-> {
+export async function buscarDuplicados(criterios: CriteriosDuplicados): Promise<LeadDuplicado[]> {
   const supabase = await createClient()
-  const duplicados: Map<string, { id: string; nombre: string; estado: EstadoLead; razon: string }> = new Map()
+  const duplicados = new Map<string, LeadDuplicado>()
 
-  // 1. Por teléfono (normalizamos quitando no-dígitos)
   if (criterios.telefono) {
     const telLimpio = criterios.telefono.replace(/[^0-9]/g, '')
     if (telLimpio.length >= 7) {
@@ -284,7 +271,6 @@ export async function buscarDuplicados(criterios: {
     }
   }
 
-  // 2. Por email
   if (criterios.email && criterios.email.includes('@')) {
     const { data } = await supabase
       .from('leads')
@@ -304,7 +290,6 @@ export async function buscarDuplicados(criterios: {
     }
   }
 
-  // 3. Por fecha + locación (casi seguro mismo evento)
   if (criterios.fecha_evento && criterios.locacion) {
     const { data } = await supabase
       .from('leads')
@@ -329,7 +314,6 @@ export async function buscarDuplicados(criterios: {
     }
   }
 
-  // 4. Por nombre + fecha (sin locación)
   if (criterios.nombre && criterios.nombre.length > 3 && criterios.fecha_evento) {
     const primeraPalabra = criterios.nombre.trim().split(/\s+/)[0].toLowerCase()
     const { data } = await supabase
@@ -357,12 +341,7 @@ export async function buscarDuplicados(criterios: {
   return Array.from(duplicados.values())
 }
 
-/**
- * Obtiene la lista de WPs verificados/no verificados para mostrar en el dropdown.
- */
-export async function obtenerWPsParaCaptura(): Promise
-  Array<{ id: string; nombre: string; verificado: boolean }>
-> {
+export async function obtenerWPsParaCaptura(): Promise<WPParaCaptura[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('wedding_planners')
@@ -376,12 +355,7 @@ export async function obtenerWPsParaCaptura(): Promise
   }))
 }
 
-/**
- * Obtiene la carga actual de cada ejecutivo (para mostrar en modal de sobrecarga).
- */
-export async function obtenerCargaEjecutivos(): Promise
-  Array<{ id: string; nombre: string; color: string | null; carga: number }>
-> {
+export async function obtenerCargaEjecutivos(): Promise<CargaEjecutivo[]> {
   const supabase = await createClient()
 
   const { data: ejecutivos } = await supabase
