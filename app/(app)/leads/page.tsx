@@ -7,6 +7,7 @@ import {
   type LeadConRelaciones,
 } from '@/lib/types/leads'
 import LeadCard from './_components/lead-card'
+import BotonCapturar from './_components/boton-capturar'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,13 +53,7 @@ export default async function LeadsPage() {
               : `${total} lead${total === 1 ? '' : 's'} en total · ${conversion}% de conversión`}
           </p>
         </div>
-        <button
-          disabled
-          className="bg-stone-200 text-stone-400 px-5 py-2.5 rounded-lg font-medium flex-shrink-0 cursor-not-allowed"
-          title="Disponible en la siguiente fase"
-        >
-          + Capturar lead
-        </button>
+        <BotonCapturar />
       </div>
 
       {/* Stats rápidas */}
@@ -89,7 +84,7 @@ export default async function LeadsPage() {
             Esta es la antesala del flujo de ventas.
           </p>
           <p className="text-xs text-stone-500">
-            La captura de leads estará disponible en la siguiente fase.
+            Usa el botón &ldquo;+ Capturar lead&rdquo; arriba a la derecha.
           </p>
         </div>
       ) : (
