@@ -21,8 +21,12 @@ export default function CambiarEstado({ leadId, estadoActual, nombreLead, tieneW
   const [razonDetalle, setRazonDetalle] = useState('')
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  // Estados disponibles (excluyendo el actual)
-  const estadosDisponibles = ORDEN_KANBAN.filter((e) => e !== estadoActual)
+  // Estados disponibles (excluyendo el actual y COTIZADO).
+  // COTIZADO se asigna automáticamente al generar la cotización desde el lead,
+  // no por click manual. Esto garantiza que siempre haya cotización vinculada.
+  const estadosDisponibles = ORDEN_KANBAN.filter(
+    (e) => e !== estadoActual && e !== 'COTIZADO'
+  )
 
   function handleClickEstado(nuevoEstado: EstadoLead) {
     setErrorMsg(null)
