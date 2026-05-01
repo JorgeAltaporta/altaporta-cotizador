@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { CANAL_LABELS, TIPO_EVENTO_LABELS, colorCanal, esLeadUrgente, formatearFechaEvento, telefonoNumerico, tiempoTranscurrido, type LeadConRelaciones } from '@/lib/types/leads'
 import { MessageSquare } from 'lucide-react'
 
@@ -17,13 +18,13 @@ export default function LeadCard({ lead }: Props) {
     ? 'border-l-amber-500'
     : 'border-l-stone-300'
 
-  const cardClass = `bg-white rounded-lg p-3 border-l-4 ${borderColor} border border-stone-200 shadow-sm hover:shadow-md transition cursor-pointer`
+  const cardClass = `bg-white rounded-lg p-3 border-l-4 ${borderColor} border border-stone-200 shadow-sm hover:shadow-md transition cursor-pointer block`
   const canalBadgeClass = `text-[10px] font-semibold px-1.5 py-0.5 rounded ${canalCol.bg} ${canalCol.text} flex-shrink-0`
   const tiempoClass = `flex-shrink-0 ${urgente ? 'text-rose-600 font-semibold' : 'text-stone-500'}`
   const waLinkClass = 'inline-flex items-center justify-center w-7 h-7 rounded border border-emerald-200 text-emerald-700 hover:bg-emerald-50 transition text-[10px] font-bold'
 
   return (
-    <div className={cardClass}>
+    <Link href={`/leads/${lead.id}`} className={cardClass}>
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm text-stone-900 truncate">{lead.nombre}</div>
@@ -69,7 +70,14 @@ export default function LeadCard({ lead }: Props) {
       </div>
 
       <div className="flex items-center gap-1 mt-2 pt-2 border-t border-stone-100">
-        <a href={waUrl} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className={waLinkClass} title="Abrir WhatsApp">
+        
+          href={waUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className={waLinkClass}
+          title="Abrir WhatsApp"
+        >
           {'WA'}
         </a>
         {lead.total_notas > 0 ? (
@@ -79,6 +87,6 @@ export default function LeadCard({ lead }: Props) {
           </span>
         ) : null}
       </div>
-    </div>
+    </Link>
   )
 }
