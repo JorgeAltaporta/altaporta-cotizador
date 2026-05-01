@@ -211,11 +211,72 @@ export function tiempoTranscurrido(fechaISO: string): string {
   })
 }
 
-/** Es un lead urgente (NUEVO sin contactar hace más de 2 horas) */
-export function esLeadUrgente(lead: Lead, slaHoras: number = 2): boolean {
-  if (lead.estado !== 'NUEVO') return false
-  const horas = (Date.now() - new Date(lead.fecha_creacion).getTime()) / (1000 * 60 * 60)
+/** SLA por defecto en horas para cada estado de lead */
+export const SLA_HORAS_POR_ESTADO_DEFAULT: Record<EstadoLead, number> = {
+  NUEVO: 2,
+  COTIZADO: 72,        // 3 días
+  SEGUIMIENTO: 120,    // 5 días
+  NEGOCIACION: 168,    // 7 días
+  GANADO: 0,           // No aplica urgencia
+  PERDIDO: 0,          // No aplica urgencia
+}
+
+/** Etiqueta humana para el badge de urgencia según estado */
+export const URGENCIA_LABEL_POR_ESTADO: Record<EstadoLead, string> = {
+  NUEVO: 'Sin contactar',
+  COTIZADO: 'Sin seguimiento',
+  SEGUIMIENTO: 'Sin avance',
+  NEGOCIACION: 'Sin cierre',
+  GANADO: '',
+  PERDIDO: '',
+}
+
+/**
+ * Determina si un lead está urgente según el SLA de su estado actual.
+ * Acepta SLAs personalizados (de config_global) o usa los defaults.
+ */
+export function esLeadUrgente(
+  lead: Lead,
+  slaPorEstado: Record<EstadoLead, number> = SLA_HORAS_POR_ESTADO_DEFAULT
+): boolean {
+  // GANADO y PERDIDO nunca son urgentes
+  if (lead.estado === 'GANADO' || lead.estado === 'PERDIDO') return false
+
+  const slaHoras = slaPorEstado[lead.estado] ?? 0
+  if (slaHoras <= 0) return false
+
+  // Para NUEVO usamos fecha_creacion. Para los demás usamos fecha_actualizacion
+  // (que se actualiza cuando hay cambios o notas).
+  const fechaReferencia = lead.estado === 'NUEVO'
+    ? lead.fecha_creacion
+    : lead.fecha_actualizacion
+
+  const horas = (Date.now() - new Date(fechaReferencia).getTime()) / (1000 * 60 * 60)
   return horas > slaHoras
+}
+
+/**
+ * Devuelve la razón de urgencia formateada para mostrar en el card.
+ * Ej: "Sin contactar +2h", "Sin seguimiento +3d"
+ */
+export function razonUrgencia(
+  lead: Lead,
+  slaPorEstado: Record<EstadoLead, number> = SLA_HORAS_POR_ESTADO_DEFAULT
+): string | null {
+  if (!esLeadUrgente(lead, slaPorEstado)) return null
+
+  const label = URGENCIA_LABEL_POR_ESTADO[lead.estado]
+  if (!label) return null
+
+  const fechaReferencia = lead.estado === 'NUEVO'
+    ? lead.fecha_creacion
+    : lead.fecha_actualizacion
+
+  const horas = Math.floor((Date.now() - new Date(fechaReferencia).getTime()) / (1000 * 60 * 60))
+  const dias = Math.floor(horas / 24)
+
+  const tiempoStr = dias > 0 ? `+${dias}d` : `+${horas}h`
+  return `${label} ${tiempoStr}`
 }
 
 /** Formatea fecha YYYY-MM-DD a "15 jun 2026" */
