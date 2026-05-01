@@ -78,6 +78,8 @@ export type WPParaCaptura = {
   id: string
   nombre: string
   verificado: boolean
+  telefono: string | null
+  email: string | null
 }
 
 export type CargaEjecutivo = {
@@ -484,13 +486,15 @@ export async function obtenerWPsParaCaptura(): Promise<WPParaCaptura[]> {
   const supabase = await createClient()
   const { data } = await supabase
     .from('wedding_planners')
-    .select('id, nombre, verificado')
+    .select('id, nombre, verificado, telefono, email')
     .order('nombre', { ascending: true })
 
   return (data || []).map((w) => ({
     id: w.id,
     nombre: w.nombre,
     verificado: !!w.verificado,
+    telefono: w.telefono ?? null,
+    email: w.email ?? null,
   }))
 }
 
