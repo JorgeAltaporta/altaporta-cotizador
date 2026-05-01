@@ -47,6 +47,10 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
   const [fechaEvento, setFechaEvento] = useState('')
   const [locacion, setLocacion] = useState('')
 
+  // Bandera: si tel/email vienen del WP (auto-prellenado)
+  const [telDeWP, setTelDeWP] = useState(false)
+  const [emailDeWP, setEmailDeWP] = useState(false)
+
   const [duplicadosLeads, setDuplicadosLeads] = useState<LeadDuplicado[]>([])
   const [duplicadosClientes, setDuplicadosClientes] = useState<ClienteExistente[]>([])
   const [wpsDisponibles, setWpsDisponibles] = useState<WPParaCaptura[]>([])
@@ -62,6 +66,47 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
       obtenerWPsParaCaptura().then(setWpsDisponibles)
     }
   }, [abierto])
+
+  // Pre-llenar tel/email cuando se selecciona WP (solo si están vacíos o vienen del WP previo)
+  useEffect(() => {
+    if (origen !== 'wp' || !wpId) {
+      // Si cambió a directo, limpiar las marcas de "vino del WP"
+      if (telDeWP) {
+        setTelefono('')
+        setTelDeWP(false)
+      }
+      if (emailDeWP) {
+        setEmail('')
+        setEmailDeWP(false)
+      }
+      return
+    }
+
+    const wp = wpsDisponibles.find((w) => w.id === wpId)
+    if (!wp) return
+
+    // Pre-llenar tel solo si está vacío o si el valor actual viene de un WP previo
+    if (wp.telefono && (!telefono || telDeWP)) {
+      setTelefono(wp.telefono)
+      setTelDeWP(true)
+    }
+    if (wp.email && (!email || emailDeWP)) {
+      setEmail(wp.email)
+      setEmailDeWP(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [origen, wpId, wpsDisponibles])
+
+  // Si el usuario edita manualmente tel/email, marcar que ya no es del WP
+  function handleTelefonoChange(v: string) {
+    setTelefono(v)
+    if (telDeWP) setTelDeWP(false)
+  }
+
+  function handleEmailChange(v: string) {
+    setEmail(v)
+    if (emailDeWP) setEmailDeWP(false)
+  }
 
   useEffect(() => {
     if (!abierto || paso < 2) return
@@ -93,6 +138,8 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
     setPax('')
     setFechaEvento('')
     setLocacion('')
+    setTelDeWP(false)
+    setEmailDeWP(false)
     setDuplicadosLeads([])
     setDuplicadosClientes([])
     setErrorMsg(null)
@@ -123,7 +170,6 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
       return
     }
     if (paso === 2) {
-      // Para leads vía WP el nombre puede estar vacío (se autogenera)
       if (origen === 'directo' && !nombre.trim()) {
         setErrorMsg('El nombre es obligatorio para leads directos')
         return
@@ -227,7 +273,7 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
               <PasoOrigen origen={origen} setOrigen={seleccionarOrigen} canal={canal} setCanal={setCanal} wpId={wpId} setWpId={setWpId} wpsDisponibles={wpsDisponibles} disabled={pending} />
             ) : null}
             {paso === 2 ? (
-              <PasoCliente origen={origen} nombre={nombre} setNombre={setNombre} telefono={telefono} setTelefono={setTelefono} email={email} setEmail={setEmail} mensaje={mensaje} setMensaje={setMensaje} duplicadosLeads={duplicadosLeads} duplicadosClientes={duplicadosClientes} disabled={pending} />
+              <PasoCliente origen={origen} nombre={nombre} setNombre={setNombre} telefono={telefono} setTelefono={handleTelefonoChange} email={email} setEmail={handleEmailChange} mensaje={mensaje} setMensaje={setMensaje} telDeWP={telDeWP} emailDeWP={emailDeWP} duplicadosLeads={duplicadosLeads} duplicadosClientes={duplicadosClientes} disabled={pending} />
             ) : null}
             {paso === 3 ? (
               <PasoEvento origen={origen} tipoEvento={tipoEvento} setTipoEvento={setTipoEvento} pax={pax} setPax={setPax} fechaEvento={fechaEvento} setFechaEvento={setFechaEvento} locacion={locacion} setLocacion={setLocacion} duplicadosLeads={duplicadosLeads} duplicadosClientes={duplicadosClientes} disabled={pending} />
@@ -379,12 +425,14 @@ type PropsPasoCliente = {
   setEmail: (s: string) => void
   mensaje: string
   setMensaje: (s: string) => void
+  telDeWP: boolean
+  emailDeWP: boolean
   duplicadosLeads: LeadDuplicado[]
   duplicadosClientes: ClienteExistente[]
   disabled: boolean
 }
 
-function PasoCliente({ origen, nombre, setNombre, telefono, setTelefono, email, setEmail, mensaje, setMensaje, duplicadosLeads, duplicadosClientes, disabled }: PropsPasoCliente) {
+function PasoCliente({ origen, nombre, setNombre, telefono, setTelefono, email, setEmail, mensaje, setMensaje, telDeWP, emailDeWP, duplicadosLeads, duplicadosClientes, disabled }: PropsPasoCliente) {
   const labelNombre = origen === 'wp'
     ? 'Nombres del cliente final / novios (opcional, se autogenera con datos del evento)'
     : 'Nombre del cliente o novios *'
@@ -402,14 +450,30 @@ function PasoCliente({ origen, nombre, setNombre, telefono, setTelefono, email, 
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs uppercase tracking-wider text-stone-500 font-semibold mb-1">Teléfono *</label>
+          <label className="block text-xs uppercase tracking-wider text-stone-500 font-semibold mb-1 flex items-center gap-2">
+            Teléfono *
+            {telDeWP ? (
+              <span className="text-[10px] normal-case tracking-normal px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">del WP</span>
+            ) : null}
+          </label>
           <input type="tel" value={telefono} onChange={(e) => setTelefono(e.target.value)} disabled={disabled} placeholder="999 123 4567" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm" />
         </div>
         <div>
-          <label className="block text-xs uppercase tracking-wider text-stone-500 font-semibold mb-1">Email</label>
+          <label className="block text-xs uppercase tracking-wider text-stone-500 font-semibold mb-1 flex items-center gap-2">
+            Email
+            {emailDeWP ? (
+              <span className="text-[10px] normal-case tracking-normal px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded font-medium">del WP</span>
+            ) : null}
+          </label>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} disabled={disabled} placeholder="opcional" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm" />
         </div>
       </div>
+
+      {origen === 'wp' && (telDeWP || emailDeWP) ? (
+        <p className="text-xs text-purple-700 italic">
+          Los datos marcados como &ldquo;del WP&rdquo; vienen prellenados del Wedding Planner. Sobrescríbelos cuando tengas los del cliente final.
+        </p>
+      ) : null}
 
       <div>
         <label className="block text-xs uppercase tracking-wider text-stone-500 font-semibold mb-1">Mensaje inicial (opcional)</label>
@@ -482,7 +546,7 @@ function PasoEvento({ origen, tipoEvento, setTipoEvento, pax, setPax, fechaEvent
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AVISOS DE CLIENTES EXISTENTES (verde - bueno, es un cliente recurrente)
+// AVISOS DE CLIENTES EXISTENTES
 // ─────────────────────────────────────────────────────────────────────────────
 
 function AvisosClientesExistentes({ clientes }: { clientes: ClienteExistente[] }) {
@@ -513,7 +577,7 @@ function AvisosClientesExistentes({ clientes }: { clientes: ClienteExistente[] }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AVISOS DE DUPLICADOS EN LEADS (ámbar - cuidado, posible duplicado activo)
+// AVISOS DE DUPLICADOS EN LEADS
 // ─────────────────────────────────────────────────────────────────────────────
 
 function AvisosDuplicadosLeads({ leads }: { leads: LeadDuplicado[] }) {
