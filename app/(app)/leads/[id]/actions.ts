@@ -340,3 +340,135 @@ export async function agregarNotaLead(
   revalidatePath(`/leads/${leadId}`)
   return { ok: true }
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// AUTO-PROMOCIÓN A COTIZADO (Fase 7 - mejora)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Promueve un lead a COTIZADO solo si está en NUEVO.
+ * Idempotente: si ya está en otro estado activo, no hace nada.
+ * Si el lead ya está en COTIZADO/SEGUIMIENTO/NEGOCIACION/GANADO/PERDIDO, deja el estado intacto.
+ *
+ * Se llama automáticamente desde el cotizador después de insertar una cotización con lead_id.
+ */
+export async function marcarLeadComoCotizado(
+  leadId: string,
+  cotizacionFolio: string
+): Promise<{ ok: boolean; cambioEstado: boolean; error?: string }> {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) {
+    return { ok: false, cambioEstado: false, error: 'No hay usuario autenticado' }
+  }
+
+  // Leer estado actual del lead
+  const { data: lead, error: errLead } = await supabase
+    .from('leads')
+    .select('estado')
+    .eq('id', leadId)
+    .maybeSingle()
+
+  if (errLead || !lead) {
+    return { ok: false, cambioEstado: false, error: 'Lead no encontrado' }
+  }
+
+  // Si ya está en COTIZADO o más avanzado, no hacemos nada (idempotencia)
+  if (lead.estado !== 'NUEVO') {
+    // Aún así dejamos una nota para auditoría de la cotización vinculada
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('nombre')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    await supabase.from('leads_notas').insert({
+      lead_id: leadId,
+      tipo: 'SISTEMA',
+      texto: `Nueva cotización vinculada: ${cotizacionFolio} (estado del lead se mantiene en ${lead.estado})`,
+      autor_id: user.id,
+      autor_nombre: profile?.nombre ?? null,
+    })
+
+    revalidatePath(`/leads/${leadId}`)
+    return { ok: true, cambioEstado: false }
+  }
+
+  // Promover a COTIZADO
+  const ahora = new Date().toISOString()
+  const { error: errUpdate } = await supabase
+    .from('leads')
+    .update({
+      estado: 'COTIZADO',
+      fecha_primer_contacto: ahora,
+    })
+    .eq('id', leadId)
+
+  if (errUpdate) {
+    console.error('[marcarLeadComoCotizado] error update:', errUpdate)
+    return { ok: false, cambioEstado: false, error: 'Error al actualizar el lead' }
+  }
+
+  // Crear nota del sistema
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('nombre')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  await supabase.from('leads_notas').insert({
+    lead_id: leadId,
+    tipo: 'SISTEMA',
+    texto: `Estatus cambió de NUEVO a COTIZADO automáticamente al generar la cotización ${cotizacionFolio}`,
+    estado_anterior: 'NUEVO',
+    estado_nuevo: 'COTIZADO',
+    autor_id: user.id,
+    autor_nombre: profile?.nombre ?? null,
+  })
+
+  revalidatePath('/leads')
+  revalidatePath(`/leads/${leadId}`)
+
+  return { ok: true, cambioEstado: true }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONSULTAR COTIZACIÓN VINCULADA AL LEAD
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type CotizacionVinculada = {
+  id: string
+  folio: string
+  estado: string
+  cliente_nombre: string
+}
+
+/**
+ * Devuelve la cotización vinculada al lead (si existe).
+ * Si hay varias, devuelve la más reciente que NO esté CANCELADA.
+ */
+export async function obtenerCotizacionVinculada(
+  leadId: string
+): Promise<CotizacionVinculada | null> {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase
+    .from('cotizaciones')
+    .select('id, folio, estado, cliente_nombre, fecha_creacion')
+    .eq('lead_id', leadId)
+    .neq('estado', 'CANCELADA')
+    .order('fecha_creacion', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error || !data) return null
+
+  return {
+    id: data.id,
+    folio: data.folio,
+    estado: data.estado,
+    cliente_nombre: data.cliente_nombre,
+  }
+}
