@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Target, AlertTriangle } from 'lucide-react'
-import WizardCotizacionForm from './form'
+import WizardCotizacionForm, { type LeadOrigen } from './form'
 
 type SearchParams = {
   lead_id?: string
@@ -30,19 +30,8 @@ export default async function NuevaCotizacionPage({ searchParams }: Props) {
     redirect('/leads?aviso=requiere-lead')
   }
 
-  // ─── Si hay lead_id, traer datos del lead para el banner ───
-  type LeadInfo = {
-    id: string
-    nombre: string
-    estado: string
-    telefono: string
-    email: string | null
-    pax: number | null
-    fecha_evento: string | null
-    locacion: string | null
-    wp_id: string | null
-  }
-  let leadInfo: LeadInfo | null = null
+  // ─── Si hay lead_id, traer datos del lead para banner Y para pre-llenar ───
+  let leadOrigen: LeadOrigen | null = null
   let leadInvalido = false
 
   if (leadIdSolicitado) {
@@ -55,7 +44,16 @@ export default async function NuevaCotizacionPage({ searchParams }: Props) {
     if (!leadData) {
       leadInvalido = true
     } else {
-      leadInfo = leadData as LeadInfo
+      leadOrigen = {
+        id: leadData.id,
+        nombre: leadData.nombre,
+        telefono: leadData.telefono,
+        email: leadData.email,
+        pax: leadData.pax,
+        fecha_evento: leadData.fecha_evento,
+        locacion: leadData.locacion,
+        wp_id: leadData.wp_id,
+      }
     }
   }
 
@@ -117,21 +115,24 @@ export default async function NuevaCotizacionPage({ searchParams }: Props) {
       </div>
 
       {/* Banner contextual */}
-      {leadInfo ? (
+      {leadOrigen ? (
         <div className="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3">
           <Target size={20} className="text-emerald-700 mt-0.5 flex-shrink-0" />
           <div className="flex-1 min-w-0">
             <div className="text-xs uppercase tracking-wider text-emerald-800 font-semibold mb-1">
-              Cotizando para Lead {leadInfo.id}
+              Cotizando para Lead {leadOrigen.id}
             </div>
-            <div className="font-medium text-stone-900">{leadInfo.nombre}</div>
+            <div className="font-medium text-stone-900">{leadOrigen.nombre}</div>
             <div className="text-xs text-stone-600 mt-1">
-              {leadInfo.pax ? `${leadInfo.pax} pax · ` : ''}
-              {leadInfo.fecha_evento ? `${leadInfo.fecha_evento} · ` : ''}
-              {leadInfo.locacion || 'Sin locación definida'}
+              {leadOrigen.pax ? `${leadOrigen.pax} pax · ` : ''}
+              {leadOrigen.fecha_evento ? `${leadOrigen.fecha_evento} · ` : ''}
+              {leadOrigen.locacion || 'Sin locación definida'}
             </div>
+            <p className="text-[11px] text-emerald-700 italic mt-2">
+              Datos pre-llenados desde el lead. Puedes editarlos si necesitas ajustar algo.
+            </p>
             <Link
-              href={`/leads/${leadInfo.id}`}
+              href={`/leads/${leadOrigen.id}`}
               className="text-xs text-emerald-700 hover:underline mt-2 inline-block"
             >
               ← Volver al lead
@@ -182,6 +183,7 @@ export default async function NuevaCotizacionPage({ searchParams }: Props) {
         adicionales={adicionalesResp.data || []}
         categorias={categoriasResp.data || []}
         clausulasGlobales={clausulasGlobales}
+        leadOrigen={leadOrigen}
       />
     </div>
   )
