@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { generarEtiqueta } from '@/lib/etiqueta-cotizacion'
-import { construirSnapshot } from '@/lib/snapshot-cotizacion'
+import { marcarLeadComoCotizado } from '@/app/(app)/leads/[id]/actions'
 import Stepper from '../Stepper'
 import ResumenVivo from '../ResumenVivo'
 import Step1Datos, {
@@ -445,6 +445,19 @@ export default function WizardCotizacionForm({
       if (errSupabase) {
         setError(`Error: ${errSupabase.message}`)
         return
+      }
+
+      // ─── AUTO-PROMOCIÓN DEL LEAD A COTIZADO ─────────────────────────
+      // Si la cotización viene de un lead, lo promovemos automáticamente
+      // a COTIZADO (solo si está en NUEVO). Si ya está más avanzado,
+      // se deja una nota indicando la nueva cotización vinculada.
+      if (leadOrigen?.id) {
+        try {
+          await marcarLeadComoCotizado(leadOrigen.id, folio)
+        } catch (err) {
+          console.error('[handleCrear] marcarLeadComoCotizado error:', err)
+          // No bloqueamos, la cotización ya fue creada
+        }
       }
 
       router.push(`/cotizaciones/${insertData.id}`)
