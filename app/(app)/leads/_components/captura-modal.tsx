@@ -66,15 +66,12 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
   useEffect(() => {
     if (!abierto || paso < 2) return
     const timer = setTimeout(() => {
-      // Para detección de duplicados, si origen es WP y campos del cliente vacíos,
-      // usamos los datos del WP como respaldo
-      const wpSeleccionado = origen === 'wp' && wpId ? wpsDisponibles.find((w) => w.id === wpId) : null
-      const telParaBuscar = telefono || (wpSeleccionado?.telefono ?? '') || undefined
-      const emailParaBuscar = email || (wpSeleccionado?.email ?? '') || undefined
-
+      // Para detección de duplicados, SOLO usamos los datos del cliente final.
+      // No usamos los del WP como fallback porque varios leads de la misma WP
+      // comparten su tel/email pero son eventos distintos (no son duplicados).
       buscarDuplicados({
-        telefono: telParaBuscar,
-        email: emailParaBuscar,
+        telefono: telefono || undefined,
+        email: email || undefined,
         nombre: nombre || undefined,
         fecha_evento: fechaEvento || undefined,
         locacion: locacion || undefined,
@@ -84,7 +81,7 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
       })
     }, 400)
     return () => clearTimeout(timer)
-  }, [abierto, paso, telefono, email, nombre, fechaEvento, locacion, origen, wpId, wpsDisponibles])
+  }, [abierto, paso, telefono, email, nombre, fechaEvento, locacion])
 
   function reiniciar() {
     setPaso(1)
