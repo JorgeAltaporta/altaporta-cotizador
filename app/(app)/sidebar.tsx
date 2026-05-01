@@ -105,7 +105,7 @@ const SIDEBAR_SECTIONS: NavSection[] = [
     id: 'ventas',
     label: 'Ventas',
     items: [
-      { label: 'Leads', href: '/leads', icon: Target, wip: true },
+      { label: 'Leads', href: '/leads', icon: Target },
       { label: 'Cotizaciones', href: '/cotizaciones', icon: FileText },
       { label: 'Wedding Planners', href: '/wps', icon: Users },
       { label: 'Configuración', href: '/catalogo', icon: Package },
