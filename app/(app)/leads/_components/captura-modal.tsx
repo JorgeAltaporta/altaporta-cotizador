@@ -9,11 +9,13 @@ import {
   obtenerWPsParaCaptura,
   obtenerCargaEjecutivos,
   crearWPRapido,
+  obtenerLocacionesParaCaptura,
   type DatosLead,
   type LeadDuplicado,
   type ClienteExistente,
   type WPParaCaptura,
   type CargaEjecutivo,
+  type LocacionParaCaptura,
 } from '../_actions/captura'
 import {
   CANAL_LABELS,
@@ -54,6 +56,7 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
   const [duplicadosLeads, setDuplicadosLeads] = useState<LeadDuplicado[]>([])
   const [duplicadosClientes, setDuplicadosClientes] = useState<ClienteExistente[]>([])
   const [wpsDisponibles, setWpsDisponibles] = useState<WPParaCaptura[]>([])
+  const [locacionesDisponibles, setLocacionesDisponibles] = useState<LocacionParaCaptura[]>([])
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [exitoMsg, setExitoMsg] = useState<string | null>(null)
 
@@ -75,6 +78,7 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
   useEffect(() => {
     if (abierto) {
       obtenerWPsParaCaptura().then(setWpsDisponibles)
+      obtenerLocacionesParaCaptura().then(setLocacionesDisponibles)
     }
   }, [abierto])
 
@@ -319,7 +323,7 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
               <PasoCliente origen={origen} wpSeleccionado={wpSeleccionado} nombre={nombre} setNombre={setNombre} telefono={telefono} setTelefono={setTelefono} email={email} setEmail={setEmail} mensaje={mensaje} setMensaje={setMensaje} duplicadosLeads={duplicadosLeads} duplicadosClientes={duplicadosClientes} disabled={pending} />
             ) : null}
             {paso === 3 ? (
-              <PasoEvento origen={origen} tipoEvento={tipoEvento} setTipoEvento={setTipoEvento} pax={pax} setPax={setPax} fechaEvento={fechaEvento} setFechaEvento={setFechaEvento} locacion={locacion} setLocacion={setLocacion} duplicadosLeads={duplicadosLeads} duplicadosClientes={duplicadosClientes} disabled={pending} />
+              <PasoEvento origen={origen} tipoEvento={tipoEvento} setTipoEvento={setTipoEvento} pax={pax} setPax={setPax} fechaEvento={fechaEvento} setFechaEvento={setFechaEvento} locacion={locacion} setLocacion={setLocacion} duplicadosLeads={duplicadosLeads} duplicadosClientes={duplicadosClientes} disabled={pending} locacionesDisponibles={locacionesDisponibles} />
             ) : null}
 
             {errorMsg ? (
@@ -678,9 +682,10 @@ type PropsPasoEvento = {
   duplicadosLeads: LeadDuplicado[]
   duplicadosClientes: ClienteExistente[]
   disabled: boolean
+  locacionesDisponibles: LocacionParaCaptura[]
 }
 
-function PasoEvento({ origen, tipoEvento, setTipoEvento, pax, setPax, fechaEvento, setFechaEvento, locacion, setLocacion, duplicadosLeads, duplicadosClientes, disabled }: PropsPasoEvento) {
+function PasoEvento({ origen, tipoEvento, setTipoEvento, pax, setPax, fechaEvento, setFechaEvento, locacion, setLocacion, duplicadosLeads, duplicadosClientes, disabled, locacionesDisponibles }: PropsPasoEvento) {
   return (
     <div className="space-y-4">
       <p className="text-xs text-stone-500 italic">
@@ -710,8 +715,33 @@ function PasoEvento({ origen, tipoEvento, setTipoEvento, pax, setPax, fechaEvent
       </div>
 
       <div>
-        <label className="block text-xs uppercase tracking-wider text-stone-500 font-semibold mb-1">Locación</label>
-        <input type="text" value={locacion} onChange={(e) => setLocacion(e.target.value)} disabled={disabled} placeholder="Hacienda Xcanatún, Quinta Montes Molina, etc." className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm" />
+        <label className="block text-xs uppercase tracking-wider text-stone-500 font-semibold mb-1">
+          Locación
+          {locacionesDisponibles.length > 0 ? (
+            <span className="ml-2 text-[10px] text-stone-400 normal-case tracking-normal">
+              ({locacionesDisponibles.length} en catálogo)
+            </span>
+          ) : null}
+        </label>
+        <input
+          type="text"
+          list="locaciones-captura-lead"
+          value={locacion}
+          onChange={(e) => setLocacion(e.target.value)}
+          disabled={disabled}
+          placeholder="Hacienda Xcanatún, Quinta Montes Molina, etc."
+          className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm"
+        />
+        <datalist id="locaciones-captura-lead">
+          {locacionesDisponibles.map((l) => (
+            <option key={`${l.zonaNombre}-${l.nombre}`} value={l.nombre}>
+              {l.zonaNombre}
+            </option>
+          ))}
+        </datalist>
+        <p className="text-[11px] text-stone-500 mt-1 italic">
+          Si la locación es nueva, escríbela libre. La zona se asigna en la cotización.
+        </p>
       </div>
 
       <AvisosClientesExistentes clientes={duplicadosClientes} />
