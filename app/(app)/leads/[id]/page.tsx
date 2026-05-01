@@ -14,6 +14,7 @@ import {
 } from '@/lib/types/leads'
 import { ArrowLeft, MessageSquare, Phone, Mail, MapPin, Calendar, Users, FileText } from 'lucide-react'
 import CambiarEstado from './_components/cambiar-estado'
+import AgregarNota from './_components/agregar-nota'
 
 export const dynamic = 'force-dynamic'
 
@@ -135,19 +136,17 @@ export default async function LeadDetallePage({ params }: Props) {
             </h2>
 
             {notas.length === 0 ? (
-              <div className="text-sm text-stone-400 text-center py-6 bg-stone-50 rounded-lg">Sin notas todavía</div>
+              <div className="text-sm text-stone-400 text-center py-6 bg-stone-50 rounded-lg mb-4">Sin notas todavía</div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 mb-4">
                 {notas.map((nota) => (
                   <NotaItem key={nota.id} nota={nota} />
                 ))}
               </div>
             )}
 
-            <div className="mt-4 pt-4 border-t border-stone-100">
-              <button disabled className="w-full bg-stone-100 text-stone-400 py-2 rounded-lg text-sm cursor-not-allowed" title="Disponible en el siguiente paso">
-                + Agregar nota (próximo paso)
-              </button>
+            <div className="pt-4 border-t border-stone-100">
+              <AgregarNota leadId={lead.id} />
             </div>
           </section>
         </div>
@@ -171,7 +170,7 @@ export default async function LeadDetallePage({ params }: Props) {
             )}
           </section>
 
-          {/* Cambiar estatus (ahora funcional) */}
+          {/* Cambiar estatus */}
           <section className="bg-white rounded-2xl border border-stone-200 p-6">
             <CambiarEstado
               leadId={lead.id}
