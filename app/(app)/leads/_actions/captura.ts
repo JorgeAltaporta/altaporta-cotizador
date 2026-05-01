@@ -616,7 +616,6 @@ export async function crearWPRapido(datos: DatosWPRapido): Promise<ResultadoCrea
     email: datos.email?.trim().toLowerCase() || null,
     comision_default: comision,
     verificado: false,
-    estado: 'ACTIVO',
   })
 
   if (errInsert) {
