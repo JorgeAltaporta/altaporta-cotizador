@@ -8,19 +8,17 @@ import type { Lead, LeadConRelaciones, LeadNota } from '@/lib/types/leads'
 
 /**
  * Tipo crudo: cómo Supabase devuelve un lead con sus relaciones embebidas.
- * Las relaciones por FK se devuelven como arrays (aun cuando son uno-a-uno),
- * por eso ejecutivo y wp son arrays.
+ * Para FKs uno-a-uno (con !nombre_constraint), Supabase devuelve OBJETO.
+ * Para relaciones inversas (count), devuelve array.
  */
 type LeadCrudo = Lead & {
-  ejecutivo: { nombre: string; color: string | null }[] | null
-  wp: { nombre: string; verificado: boolean | null }[] | null
+  ejecutivo: { nombre: string; color: string | null } | null
+  wp: { nombre: string; verificado: boolean | null } | null
   notas: { count: number }[] | null
 }
 
 /** Aplana un lead crudo de Supabase a la forma plana que usan los componentes */
 function aplanarLead(l: LeadCrudo): LeadConRelaciones {
-  const ejec = l.ejecutivo?.[0] ?? null
-  const wp = l.wp?.[0] ?? null
   return {
     id: l.id,
     canal: l.canal,
@@ -43,10 +41,10 @@ function aplanarLead(l: LeadCrudo): LeadConRelaciones {
     fecha_actualizacion: l.fecha_actualizacion,
     fecha_primer_contacto: l.fecha_primer_contacto,
     fecha_cierre: l.fecha_cierre,
-    ejecutivo_nombre: ejec?.nombre ?? null,
-    ejecutivo_color: ejec?.color ?? null,
-    wp_nombre: wp?.nombre ?? null,
-    wp_verificado: wp?.verificado ?? null,
+    ejecutivo_nombre: l.ejecutivo?.nombre ?? null,
+    ejecutivo_color: l.ejecutivo?.color ?? null,
+    wp_nombre: l.wp?.nombre ?? null,
+    wp_verificado: l.wp?.verificado ?? null,
     total_notas: l.notas?.[0]?.count ?? 0,
   }
 }
@@ -86,7 +84,6 @@ export async function obtenerLeadsConRelaciones(): Promise<LeadConRelaciones[]> 
 
 /**
  * Obtiene un lead individual por su ID, con todas sus relaciones.
- * Se usará en la Fase 3 para la vista de detalle.
  */
 export async function obtenerLeadPorId(
   id: string
@@ -104,14 +101,6 @@ export async function obtenerLeadPorId(
     return null
   }
   if (!data) return null
-
-  // ─── DEBUG TEMPORAL ─── quitar después de diagnosticar
-  console.log('[DEBUG obtenerLeadPorId]', JSON.stringify({
-    id,
-    ejecutivo_raw: (data as Record<string, unknown>).ejecutivo,
-    wp_raw: (data as Record<string, unknown>).wp,
-    ejecutivo_id: (data as Record<string, unknown>).ejecutivo_id,
-  }, null, 2))
 
   return aplanarLead(data as unknown as LeadCrudo)
 }
