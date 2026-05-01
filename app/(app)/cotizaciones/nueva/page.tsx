@@ -35,28 +35,47 @@ export default async function NuevaCotizacionPage({ searchParams }: Props) {
   let leadInvalido = false
 
   if (leadIdSolicitado) {
+    type LeadCrudo = {
+      id: string
+      nombre: string
+      estado: string
+      telefono: string
+      email: string | null
+      pax: number | null
+      fecha_evento: string | null
+      locacion: string | null
+      wp_id: string | null
+      ejecutivo_id: string | null
+      ejecutivo: { nombre: string }[] | null
+    }
     const { data: leadData } = await supabase
       .from('leads')
-      .select('id, nombre, estado, telefono, email, pax, fecha_evento, locacion, wp_id')
+      .select(`
+        id, nombre, estado, telefono, email, pax, fecha_evento, locacion, wp_id,
+        ejecutivo_id,
+        ejecutivo:profiles!ejecutivo_id ( nombre )
+      `)
       .eq('id', leadIdSolicitado)
       .maybeSingle()
 
     if (!leadData) {
       leadInvalido = true
     } else {
+      const lead = leadData as unknown as LeadCrudo
       leadOrigen = {
-        id: leadData.id,
-        nombre: leadData.nombre,
-        telefono: leadData.telefono,
-        email: leadData.email,
-        pax: leadData.pax,
-        fecha_evento: leadData.fecha_evento,
-        locacion: leadData.locacion,
-        wp_id: leadData.wp_id,
+        id: lead.id,
+        nombre: lead.nombre,
+        telefono: lead.telefono,
+        email: lead.email,
+        pax: lead.pax,
+        fecha_evento: lead.fecha_evento,
+        locacion: lead.locacion,
+        wp_id: lead.wp_id,
+        ejecutivo_id: lead.ejecutivo_id,
+        ejecutivo_nombre: lead.ejecutivo?.[0]?.nombre ?? null,
       }
     }
   }
-
   const [
     paquetesResp,
     zonasResp,
