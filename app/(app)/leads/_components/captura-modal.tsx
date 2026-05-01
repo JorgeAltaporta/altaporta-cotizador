@@ -10,6 +10,7 @@ import {
   obtenerCargaEjecutivos,
   type DatosLead,
   type LeadDuplicado,
+  type ClienteExistente,
   type WPParaCaptura,
   type CargaEjecutivo,
 } from '../_actions/captura'
@@ -46,7 +47,8 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
   const [fechaEvento, setFechaEvento] = useState('')
   const [locacion, setLocacion] = useState('')
 
-  const [duplicados, setDuplicados] = useState<LeadDuplicado[]>([])
+  const [duplicadosLeads, setDuplicadosLeads] = useState<LeadDuplicado[]>([])
+  const [duplicadosClientes, setDuplicadosClientes] = useState<ClienteExistente[]>([])
   const [wpsDisponibles, setWpsDisponibles] = useState<WPParaCaptura[]>([])
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [exitoMsg, setExitoMsg] = useState<string | null>(null)
@@ -70,7 +72,10 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
         nombre: nombre || undefined,
         fecha_evento: fechaEvento || undefined,
         locacion: locacion || undefined,
-      }).then(setDuplicados)
+      }).then((res) => {
+        setDuplicadosLeads(res.leads)
+        setDuplicadosClientes(res.clientes)
+      })
     }, 400)
     return () => clearTimeout(timer)
   }, [abierto, paso, telefono, email, nombre, fechaEvento, locacion])
@@ -88,7 +93,8 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
     setPax('')
     setFechaEvento('')
     setLocacion('')
-    setDuplicados([])
+    setDuplicadosLeads([])
+    setDuplicadosClientes([])
     setErrorMsg(null)
     setExitoMsg(null)
     setMostrarSobrecarga(false)
@@ -117,8 +123,9 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
       return
     }
     if (paso === 2) {
-      if (!nombre.trim()) {
-        setErrorMsg('El nombre es obligatorio')
+      // Para leads vía WP el nombre puede estar vacío (se autogenera)
+      if (origen === 'directo' && !nombre.trim()) {
+        setErrorMsg('El nombre es obligatorio para leads directos')
         return
       }
       if (!telefono.trim()) {
@@ -220,10 +227,10 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
               <PasoOrigen origen={origen} setOrigen={seleccionarOrigen} canal={canal} setCanal={setCanal} wpId={wpId} setWpId={setWpId} wpsDisponibles={wpsDisponibles} disabled={pending} />
             ) : null}
             {paso === 2 ? (
-              <PasoCliente origen={origen} nombre={nombre} setNombre={setNombre} telefono={telefono} setTelefono={setTelefono} email={email} setEmail={setEmail} mensaje={mensaje} setMensaje={setMensaje} duplicados={duplicados} disabled={pending} />
+              <PasoCliente origen={origen} nombre={nombre} setNombre={setNombre} telefono={telefono} setTelefono={setTelefono} email={email} setEmail={setEmail} mensaje={mensaje} setMensaje={setMensaje} duplicadosLeads={duplicadosLeads} duplicadosClientes={duplicadosClientes} disabled={pending} />
             ) : null}
             {paso === 3 ? (
-              <PasoEvento tipoEvento={tipoEvento} setTipoEvento={setTipoEvento} pax={pax} setPax={setPax} fechaEvento={fechaEvento} setFechaEvento={setFechaEvento} locacion={locacion} setLocacion={setLocacion} duplicados={duplicados} disabled={pending} />
+              <PasoEvento origen={origen} tipoEvento={tipoEvento} setTipoEvento={setTipoEvento} pax={pax} setPax={setPax} fechaEvento={fechaEvento} setFechaEvento={setFechaEvento} locacion={locacion} setLocacion={setLocacion} duplicadosLeads={duplicadosLeads} duplicadosClientes={duplicadosClientes} disabled={pending} />
             ) : null}
 
             {errorMsg ? (
@@ -372,17 +379,25 @@ type PropsPasoCliente = {
   setEmail: (s: string) => void
   mensaje: string
   setMensaje: (s: string) => void
-  duplicados: LeadDuplicado[]
+  duplicadosLeads: LeadDuplicado[]
+  duplicadosClientes: ClienteExistente[]
   disabled: boolean
 }
 
-function PasoCliente({ origen, nombre, setNombre, telefono, setTelefono, email, setEmail, mensaje, setMensaje, duplicados, disabled }: PropsPasoCliente) {
-  const labelNombre = origen === 'wp' ? 'Nombres del cliente final / novios *' : 'Nombre del cliente o novios *'
+function PasoCliente({ origen, nombre, setNombre, telefono, setTelefono, email, setEmail, mensaje, setMensaje, duplicadosLeads, duplicadosClientes, disabled }: PropsPasoCliente) {
+  const labelNombre = origen === 'wp'
+    ? 'Nombres del cliente final / novios (opcional, se autogenera con datos del evento)'
+    : 'Nombre del cliente o novios *'
+
+  const placeholder = origen === 'wp'
+    ? 'Ej: López-Castro · Déjalo vacío si la WP no ha dado nombres'
+    : 'Ej: María González · O "Renee López y Bryan Castro"'
+
   return (
     <div className="space-y-4">
       <div>
         <label className="block text-xs uppercase tracking-wider text-stone-500 font-semibold mb-1">{labelNombre}</label>
-        <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={disabled} placeholder="Ej: María González · O 'Renee López y Bryan Castro'" className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm" />
+        <input type="text" value={nombre} onChange={(e) => setNombre(e.target.value)} disabled={disabled} placeholder={placeholder} className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm" />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -401,7 +416,8 @@ function PasoCliente({ origen, nombre, setNombre, telefono, setTelefono, email, 
         <textarea value={mensaje} onChange={(e) => setMensaje(e.target.value)} disabled={disabled} rows={3} placeholder="Hola, busco información para mi evento..." className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm resize-none" />
       </div>
 
-      <AvisosDuplicados duplicados={duplicados} />
+      <AvisosClientesExistentes clientes={duplicadosClientes} />
+      <AvisosDuplicadosLeads leads={duplicadosLeads} />
     </div>
   )
 }
@@ -411,6 +427,7 @@ function PasoCliente({ origen, nombre, setNombre, telefono, setTelefono, email, 
 // ─────────────────────────────────────────────────────────────────────────────
 
 type PropsPasoEvento = {
+  origen: OrigenLead
   tipoEvento: TipoEvento | ''
   setTipoEvento: (t: TipoEvento | '') => void
   pax: string
@@ -419,14 +436,19 @@ type PropsPasoEvento = {
   setFechaEvento: (s: string) => void
   locacion: string
   setLocacion: (s: string) => void
-  duplicados: LeadDuplicado[]
+  duplicadosLeads: LeadDuplicado[]
+  duplicadosClientes: ClienteExistente[]
   disabled: boolean
 }
 
-function PasoEvento({ tipoEvento, setTipoEvento, pax, setPax, fechaEvento, setFechaEvento, locacion, setLocacion, duplicados, disabled }: PropsPasoEvento) {
+function PasoEvento({ origen, tipoEvento, setTipoEvento, pax, setPax, fechaEvento, setFechaEvento, locacion, setLocacion, duplicadosLeads, duplicadosClientes, disabled }: PropsPasoEvento) {
   return (
     <div className="space-y-4">
-      <p className="text-xs text-stone-500 italic">Estos campos son opcionales. Puedes dejarlos en blanco si todavía no tienes la información.</p>
+      <p className="text-xs text-stone-500 italic">
+        {origen === 'wp'
+          ? 'Si la WP pidió cotización sin nombres, completa estos datos para que el lead tenga un título legible (ej: Boda 200pax · 15-jun · Sotuta).'
+          : 'Estos campos son opcionales. Puedes dejarlos en blanco si todavía no tienes la información.'}
+      </p>
 
       <div className="grid grid-cols-3 gap-3">
         <div>
@@ -453,23 +475,55 @@ function PasoEvento({ tipoEvento, setTipoEvento, pax, setPax, fechaEvento, setFe
         <input type="text" value={locacion} onChange={(e) => setLocacion(e.target.value)} disabled={disabled} placeholder="Hacienda Xcanatún, Quinta Montes Molina, etc." className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm" />
       </div>
 
-      <AvisosDuplicados duplicados={duplicados} />
+      <AvisosClientesExistentes clientes={duplicadosClientes} />
+      <AvisosDuplicadosLeads leads={duplicadosLeads} />
     </div>
   )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AVISOS DE DUPLICADOS
+// AVISOS DE CLIENTES EXISTENTES (verde - bueno, es un cliente recurrente)
 // ─────────────────────────────────────────────────────────────────────────────
 
-function AvisosDuplicados({ duplicados }: { duplicados: LeadDuplicado[] }) {
-  return duplicados.length === 0 ? null : (
-    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-      <div className="text-xs uppercase tracking-wider text-amber-800 font-semibold mb-2">
-        ⚠ Posible duplicado detectado ({duplicados.length})
+function AvisosClientesExistentes({ clientes }: { clientes: ClienteExistente[] }) {
+  return clientes.length === 0 ? null : (
+    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+      <div className="text-xs uppercase tracking-wider text-emerald-800 font-semibold mb-2">
+        ✓ Cliente existente detectado ({clientes.length})
       </div>
       <div className="space-y-1.5">
-        {duplicados.map((d) => (
+        {clientes.map((c) => (
+          <div key={c.id} className="p-2 bg-white border border-emerald-200 rounded text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-stone-900">{c.nombre}</span>
+              <span className="text-emerald-700 text-[10px] uppercase font-semibold">{c.razon}</span>
+            </div>
+            <div className="text-stone-600 mt-0.5">
+              {c.telefono}
+              {c.email ? ` · ${c.email}` : ''}
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="text-[11px] text-stone-600 mt-2 italic">
+        Es un cliente recurrente. Al guardar este lead, se vinculará automáticamente al cliente existente.
+      </p>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AVISOS DE DUPLICADOS EN LEADS (ámbar - cuidado, posible duplicado activo)
+// ─────────────────────────────────────────────────────────────────────────────
+
+function AvisosDuplicadosLeads({ leads }: { leads: LeadDuplicado[] }) {
+  return leads.length === 0 ? null : (
+    <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+      <div className="text-xs uppercase tracking-wider text-amber-800 font-semibold mb-2">
+        ⚠ Posible duplicado en leads activos ({leads.length})
+      </div>
+      <div className="space-y-1.5">
+        {leads.map((d) => (
           <a key={d.id} href={`/leads/${d.id}`} target="_blank" rel="noopener noreferrer" className="block p-2 bg-white border border-amber-200 rounded hover:border-amber-400 transition text-xs">
             <div className="flex items-center justify-between">
               <span className="font-medium text-stone-900">{d.nombre}</span>
