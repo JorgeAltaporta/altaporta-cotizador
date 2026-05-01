@@ -105,6 +105,14 @@ export async function obtenerLeadPorId(
   }
   if (!data) return null
 
+  // ─── DEBUG TEMPORAL ─── quitar después de diagnosticar
+  console.log('[DEBUG obtenerLeadPorId]', JSON.stringify({
+    id,
+    ejecutivo_raw: (data as Record<string, unknown>).ejecutivo,
+    wp_raw: (data as Record<string, unknown>).wp,
+    ejecutivo_id: (data as Record<string, unknown>).ejecutivo_id,
+  }, null, 2))
+
   return aplanarLead(data as unknown as LeadCrudo)
 }
 
