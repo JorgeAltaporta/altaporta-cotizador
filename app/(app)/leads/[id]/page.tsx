@@ -186,10 +186,10 @@ export default async function LeadDetallePage({ params }: Props) {
             <section className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
               <h2 className="text-xs uppercase tracking-wider text-amber-800 mb-2 font-semibold">Acción rápida</h2>
               <p className="text-sm text-stone-700 mb-3">Genera una cotización con los datos de este lead.</p>
-              <button disabled className="w-full bg-stone-200 text-stone-400 py-2.5 rounded-lg font-medium cursor-not-allowed" title="Disponible en la Fase 8">
+              <Link href={`/cotizaciones/nueva?lead_id=${lead.id}`} className="block w-full bg-amber-700 hover:bg-amber-800 text-white py-2.5 rounded-lg font-medium text-center transition">
                 + Generar cotización
-              </button>
-              <p className="text-[10px] text-stone-500 mt-2 italic">Disponible en una próxima fase</p>
+              </Link>
+              <p className="text-[10px] text-stone-500 mt-2 italic">Te llevará al cotizador con datos del lead disponibles.</p>
             </section>
           ) : null}
 
