@@ -21,6 +21,7 @@ import {
 
 type Props = {
   leads: LeadConRelaciones[]
+  ejecutivoNombrePreseleccionado?: string | null
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -64,8 +65,13 @@ const FILTROS_INICIALES: Filtros = {
 // COMPONENTE PRINCIPAL
 // ─────────────────────────────────────────────────────────────────────────────
 
-export default function VistaLista({ leads }: Props) {
-  const [filtros, setFiltros] = useState<Filtros>(FILTROS_INICIALES)
+export default function VistaLista({ leads, ejecutivoNombrePreseleccionado }: Props) {
+  const [filtros, setFiltros] = useState<Filtros>(() => ({
+    ...FILTROS_INICIALES,
+    ejecutivo: ejecutivoNombrePreseleccionado === 'Sin asignar'
+      ? 'SIN_ASIGNAR'
+      : ejecutivoNombrePreseleccionado || 'TODOS',
+  }))
   const [popoverAbierto, setPopoverAbierto] = useState<string | null>(null)
 
   // Lista de ejecutivos únicos en los leads
