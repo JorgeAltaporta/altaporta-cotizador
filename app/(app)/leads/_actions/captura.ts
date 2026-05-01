@@ -527,3 +527,114 @@ export async function obtenerCargaEjecutivos(): Promise<CargaEjecutivo[]> {
 
   return resultado
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// CREACIÓN RÁPIDA DE WP (Fase 6)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type DatosWPRapido = {
+  nombre: string
+  contacto?: string
+  telefono?: string
+  email?: string
+  comision_default?: number
+}
+
+export type ResultadoCrearWP = {
+  ok: boolean
+  error?: string
+  wp?: WPParaCaptura
+}
+
+/**
+ * Crea un Wedding Planner desde el modal de captura de lead.
+ * Se crea con verificado=false para que Jorge/Danna lo verifiquen después en /wps.
+ */
+export async function crearWPRapido(datos: DatosWPRapido): Promise<ResultadoCrearWP> {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) {
+    return { ok: false, error: 'No hay usuario autenticado' }
+  }
+
+  const nombre = datos.nombre.trim()
+  if (!nombre) {
+    return { ok: false, error: 'El nombre del WP es obligatorio' }
+  }
+  if (nombre.length < 3) {
+    return { ok: false, error: 'El nombre debe tener al menos 3 caracteres' }
+  }
+
+  // Validar comisión (rango 0-50 razonable)
+  const comision =
+    datos.comision_default !== undefined && datos.comision_default !== null
+      ? datos.comision_default
+      : 10
+  if (comision < 0 || comision > 50) {
+    return { ok: false, error: 'La comisión debe estar entre 0% y 50%' }
+  }
+
+  // Detectar duplicado por nombre (case-insensitive)
+  const { data: existentes } = await supabase
+    .from('wedding_planners')
+    .select('id, nombre')
+
+  const duplicado = (existentes || []).find(
+    (w) => w.nombre.trim().toLowerCase() === nombre.toLowerCase()
+  )
+  if (duplicado) {
+    return {
+      ok: false,
+      error: `Ya existe un WP con ese nombre (${duplicado.nombre}). Selecciónalo en la lista.`,
+    }
+  }
+
+  // Generar ID tipo WP-NNN
+  const { data: ultimosWPs } = await supabase
+    .from('wedding_planners')
+    .select('id')
+    .like('id', 'WP-%')
+    .order('id', { ascending: false })
+    .limit(1)
+
+  let nuevoId = 'WP-001'
+  if (ultimosWPs && ultimosWPs.length > 0) {
+    const ultimo = ultimosWPs[0].id
+    const num = parseInt(ultimo.replace('WP-', ''), 10)
+    if (!isNaN(num)) {
+      nuevoId = `WP-${String(num + 1).padStart(3, '0')}`
+    }
+  }
+
+  const { error: errInsert } = await supabase.from('wedding_planners').insert({
+    id: nuevoId,
+    nombre,
+    contacto: datos.contacto?.trim() || null,
+    telefono: datos.telefono?.trim() || null,
+    email: datos.email?.trim().toLowerCase() || null,
+    comision_default: comision,
+    verificado: false,
+    estado: 'ACTIVO',
+  })
+
+  if (errInsert) {
+    console.error('[crearWPRapido] error insert:', errInsert)
+    return { ok: false, error: 'Error al crear el WP' }
+  }
+
+  revalidatePath('/leads')
+  revalidatePath('/wps')
+
+  return {
+    ok: true,
+    wp: {
+      id: nuevoId,
+      nombre,
+      verificado: false,
+      telefono: datos.telefono?.trim() || null,
+      email: datos.email?.trim() || null,
+    },
+  }
+}
