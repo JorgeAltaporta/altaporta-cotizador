@@ -637,3 +637,44 @@ export async function crearWPRapido(datos: DatosWPRapido): Promise<ResultadoCrea
     },
   }
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// LOCACIONES PARA AUTOCOMPLETADO
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type LocacionParaCaptura = {
+  nombre: string
+  zonaNombre: string
+}
+
+/**
+ * Devuelve todas las locaciones registradas en el catálogo de zonas,
+ * para autocompletado en el modal de captura de lead.
+ * Solo informativo: si el usuario escribe una locación nueva, se guarda libre.
+ */
+export async function obtenerLocacionesParaCaptura(): Promise<LocacionParaCaptura[]> {
+  const supabase = await createClient()
+
+  const { data: zonas, error } = await supabase
+    .from('zonas')
+    .select('nombre, locaciones')
+    .eq('estado', 'ACTIVO')
+
+  if (error || !zonas) {
+    console.error('[obtenerLocacionesParaCaptura] error:', error)
+    return []
+  }
+
+  type ZonaRaw = { nombre: string; locaciones: Array<{ nombre: string; estado?: string }> | null }
+
+  const lista: LocacionParaCaptura[] = []
+  for (const z of zonas as ZonaRaw[]) {
+    for (const l of z.locaciones ?? []) {
+      // Solo incluir locaciones activas (no pendientes)
+      if (!l.estado || l.estado === 'ACTIVA') {
+        lista.push({ nombre: l.nombre, zonaNombre: z.nombre })
+      }
+    }
+  }
+
+  return lista.sort((a, b) => a.nombre.localeCompare(b.nombre))
+}
