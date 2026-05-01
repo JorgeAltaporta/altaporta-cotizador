@@ -47,6 +47,20 @@ type ClausulasGlobales = {
   instalaciones: string
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LeadOrigen: datos del lead cuando entras al cotizador desde un lead
+// ─────────────────────────────────────────────────────────────────────────────
+export type LeadOrigen = {
+  id: string
+  nombre: string
+  telefono: string
+  email: string | null
+  pax: number | null
+  fecha_evento: string | null
+  locacion: string | null
+  wp_id: string | null
+}
+
 const COMISION_EJECUTIVO_DEFAULT: Record<string, number> = {}
 
 export default function WizardCotizacionForm({
@@ -59,6 +73,7 @@ export default function WizardCotizacionForm({
   adicionales,
   categorias,
   clausulasGlobales,
+  leadOrigen,
 }: {
   usuario: Usuario
   paquetes: Paquete[]
@@ -69,19 +84,30 @@ export default function WizardCotizacionForm({
   adicionales: Adicional[]
   categorias: Categoria[]
   clausulasGlobales: ClausulasGlobales
+  leadOrigen?: LeadOrigen | null
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [step, setStep] = useState(1)
 
+  // ─── Estado inicial: pre-llenar con datos del lead si vienen ───
+  const eventoInicial: EventoForm = leadOrigen
+    ? {
+        ...eventoVacio(),
+        fecha: leadOrigen.fecha_evento ?? '',
+        locacionTexto: leadOrigen.locacion ?? '',
+        pax: leadOrigen.pax ?? 0,
+      }
+    : eventoVacio()
+
   const [data, setData] = useState<Step1Data>({
-    clienteNombre: '',
-    wpId: 'WP-DIRECTO',
+    clienteNombre: leadOrigen?.nombre ?? '',
+    wpId: leadOrigen?.wp_id ?? 'WP-DIRECTO',
     comisionOverride: null,
     ejecutivoId: usuario.rol === 'EJECUTIVO' ? usuario.id : '',
-    notasInternas: '',
-    eventos: [eventoVacio()],
+    notasInternas: leadOrigen ? `Generada desde Lead ${leadOrigen.id}` : '',
+    eventos: [eventoInicial],
   })
 
   const [ajustes, setAjustes] = useState<Step3Data>({
@@ -339,9 +365,7 @@ export default function WizardCotizacionForm({
         }
       })
 
-      // ── Snapshot de Fase G ─────────────────────────────────────────────
-      // Congela el estado del catálogo para que la cotización entregada al
-      // cliente nunca cambie aunque Jorge edite el catálogo después.
+      // Snapshot de catálogo
       const wpSeleccionado = weddingPlanners.find((w) => w.id === data.wpId)
       const ejecutivoSel = ejecutivos.find((e) => e.id === data.ejecutivoId)
 
@@ -401,12 +425,15 @@ export default function WizardCotizacionForm({
           eventos: eventosParaGuardar,
           adicionales_globales: [],
           snapshot,
+          // Vincular al lead origen si vino
+          lead_id: leadOrigen?.id ?? null,
           historial: [
             {
               accion: 'CREADA',
               usuario_id: usuario.id,
               usuario_nombre: usuario.nombre,
               fecha: new Date().toISOString(),
+              ...(leadOrigen ? { lead_origen_id: leadOrigen.id } : {}),
             },
           ],
         })
