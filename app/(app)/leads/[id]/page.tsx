@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { obtenerLeadPorId, obtenerNotasDeLead } from '@/lib/leads/queries'
+import { obtenerCotizacionVinculada } from './actions'
 import { createClient } from '@/lib/supabase/server'
 import {
   CANAL_LABELS,
@@ -12,7 +13,7 @@ import {
   telefonoNumerico,
   tiempoTranscurrido,
 } from '@/lib/types/leads'
-import { ArrowLeft, MessageSquare, Phone, Mail, MapPin, Calendar, Users, FileText } from 'lucide-react'
+import { ArrowLeft, MessageSquare, Phone, Mail, MapPin, Calendar, Users, FileText, Pencil } from 'lucide-react'
 import CambiarEstado from './_components/cambiar-estado'
 import AgregarNota from './_components/agregar-nota'
 
@@ -31,13 +32,13 @@ export default async function LeadDetallePage({ params }: Props) {
   }
 
   const notas = await obtenerNotasDeLead(id)
+  const cotizacionVinculada = await obtenerCotizacionVinculada(id)
   const colorEstadoActual = colorEstado(lead.estado)
   const tel = telefonoNumerico(lead.telefono)
   const waUrl = `https://wa.me/52${tel}`
 
-  const puedeGenerarCotizacion = ['NUEVO', 'COTIZADO', 'SEGUIMIENTO', 'NEGOCIACION'].includes(
-    lead.estado
-  )
+  // Estados activos donde tiene sentido mostrar la acción de cotización
+  const esActivoOEnCierre = ['NUEVO', 'COTIZADO', 'SEGUIMIENTO', 'NEGOCIACION'].includes(lead.estado)
 
   // Si tiene WP, traer su comisión para mostrarla en el modal de GANADO
   let comisionWP: number | null = null
@@ -181,16 +182,37 @@ export default async function LeadDetallePage({ params }: Props) {
             />
           </section>
 
-          {/* Acción: generar cotización */}
-          {puedeGenerarCotizacion ? (
-            <section className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
-              <h2 className="text-xs uppercase tracking-wider text-amber-800 mb-2 font-semibold">Acción rápida</h2>
-              <p className="text-sm text-stone-700 mb-3">Genera una cotización con los datos de este lead.</p>
-              <Link href={`/cotizaciones/nueva?lead_id=${lead.id}`} className="block w-full bg-amber-700 hover:bg-amber-800 text-white py-2.5 rounded-lg font-medium text-center transition">
-                + Generar cotización
-              </Link>
-              <p className="text-[10px] text-stone-500 mt-2 italic">Te llevará al cotizador con datos del lead disponibles.</p>
-            </section>
+          {/* Acción: cotización */}
+          {esActivoOEnCierre ? (
+            cotizacionVinculada ? (
+              <section className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6">
+                <h2 className="text-xs uppercase tracking-wider text-emerald-800 mb-2 font-semibold">Cotización vinculada</h2>
+                <div className="bg-white border border-emerald-100 rounded-lg p-3 mb-3">
+                  <div className="text-xs font-mono text-emerald-700 mb-1">{cotizacionVinculada.folio}</div>
+                  <div className="text-sm font-medium text-stone-900">{cotizacionVinculada.cliente_nombre}</div>
+                  <div className="text-xs text-stone-500 mt-1">Estado: {cotizacionVinculada.estado}</div>
+                </div>
+                <Link
+                  href={`/cotizaciones/${cotizacionVinculada.id}/editar`}
+                  className="flex items-center justify-center gap-2 w-full bg-emerald-700 hover:bg-emerald-800 text-white py-2.5 rounded-lg font-medium text-center transition"
+                >
+                  <Pencil size={14} />
+                  Editar cotización
+                </Link>
+                <p className="text-[10px] text-stone-500 mt-2 italic">
+                  Si necesitas ajustar precio, paquete o pax, edita la cotización existente.
+                </p>
+              </section>
+            ) : (
+              <section className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
+                <h2 className="text-xs uppercase tracking-wider text-amber-800 mb-2 font-semibold">Acción rápida</h2>
+                <p className="text-sm text-stone-700 mb-3">Genera una cotización con los datos de este lead.</p>
+                <Link href={`/cotizaciones/nueva?lead_id=${lead.id}`} className="block w-full bg-amber-700 hover:bg-amber-800 text-white py-2.5 rounded-lg font-medium text-center transition">
+                  + Generar cotización
+                </Link>
+                <p className="text-[10px] text-stone-500 mt-2 italic">Al guardar, el lead pasará automáticamente a COTIZADO.</p>
+              </section>
+            )
           ) : null}
 
           {/* Razón de pérdida */}
