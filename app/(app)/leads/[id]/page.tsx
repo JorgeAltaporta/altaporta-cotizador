@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { obtenerLeadPorId, obtenerNotasDeLead } from '@/lib/leads/queries'
+import { createClient } from '@/lib/supabase/server'
 import {
   CANAL_LABELS,
   ESTADO_LABELS,
@@ -12,6 +13,7 @@ import {
   tiempoTranscurrido,
 } from '@/lib/types/leads'
 import { ArrowLeft, MessageSquare, Phone, Mail, MapPin, Calendar, Users, FileText } from 'lucide-react'
+import CambiarEstado from './_components/cambiar-estado'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +37,18 @@ export default async function LeadDetallePage({ params }: Props) {
   const puedeGenerarCotizacion = ['NUEVO', 'COTIZADO', 'SEGUIMIENTO', 'NEGOCIACION'].includes(
     lead.estado
   )
+
+  // Si tiene WP, traer su comisión para mostrarla en el modal de GANADO
+  let comisionWP: number | null = null
+  if (lead.wp_id) {
+    const supabase = await createClient()
+    const { data: wp } = await supabase
+      .from('wedding_planners')
+      .select('comision_default')
+      .eq('id', lead.wp_id)
+      .maybeSingle()
+    comisionWP = wp?.comision_default ?? null
+  }
 
   return (
     <div className="p-12 max-w-5xl">
@@ -157,10 +171,15 @@ export default async function LeadDetallePage({ params }: Props) {
             )}
           </section>
 
-          {/* Cambiar estatus (placeholder) */}
+          {/* Cambiar estatus (ahora funcional) */}
           <section className="bg-white rounded-2xl border border-stone-200 p-6">
-            <h2 className="text-xs uppercase tracking-wider text-stone-500 mb-3 font-semibold">Cambiar estatus</h2>
-            <div className="text-xs text-stone-400 italic">Disponible en el siguiente paso</div>
+            <CambiarEstado
+              leadId={lead.id}
+              estadoActual={lead.estado}
+              nombreLead={lead.nombre}
+              tieneWP={!!lead.wp_id}
+              comisionWP={comisionWP}
+            />
           </section>
 
           {/* Acción: generar cotización */}
