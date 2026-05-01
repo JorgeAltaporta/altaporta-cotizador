@@ -1,9 +1,21 @@
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
+import { Target, AlertTriangle } from 'lucide-react'
 import WizardCotizacionForm from './form'
 
-export default async function NuevaCotizacionPage() {
+type SearchParams = {
+  lead_id?: string
+}
+
+type Props = {
+  searchParams: Promise<SearchParams>
+}
+
+export default async function NuevaCotizacionPage({ searchParams }: Props) {
   const supabase = await createClient()
+  const params = await searchParams
+  const leadIdSolicitado = params.lead_id?.trim() || null
 
   const { data: { user } } = await supabase.auth.getUser()
   const { data: profile } = await supabase
@@ -11,6 +23,41 @@ export default async function NuevaCotizacionPage() {
     .select('id, nombre, rol, puede_aprobar')
     .eq('id', user!.id)
     .single()
+
+  // ─── REGLA: ejecutivos requieren lead_id; aprobadores pueden cotizar libre ───
+  const esAprobador = !!profile?.puede_aprobar
+  if (!leadIdSolicitado && !esAprobador) {
+    redirect('/leads?aviso=requiere-lead')
+  }
+
+  // ─── Si hay lead_id, traer datos del lead para el banner ───
+  type LeadInfo = {
+    id: string
+    nombre: string
+    estado: string
+    telefono: string
+    email: string | null
+    pax: number | null
+    fecha_evento: string | null
+    locacion: string | null
+    wp_id: string | null
+  }
+  let leadInfo: LeadInfo | null = null
+  let leadInvalido = false
+
+  if (leadIdSolicitado) {
+    const { data: leadData } = await supabase
+      .from('leads')
+      .select('id, nombre, estado, telefono, email, pax, fecha_evento, locacion, wp_id')
+      .eq('id', leadIdSolicitado)
+      .maybeSingle()
+
+    if (!leadData) {
+      leadInvalido = true
+    } else {
+      leadInfo = leadData as LeadInfo
+    }
+  }
 
   const [
     paquetesResp,
@@ -39,7 +86,6 @@ export default async function NuevaCotizacionPage() {
     supabase.from('clausulas_globales').select('contenido').eq('id', 'global').single(),
   ])
 
-  // Cláusulas globales con defaults por si fallan
   const clausulasGlobales = (clausulasResp.data?.contenido as {
     anticipoPct: number
     vigenciaDiasDefault: number
@@ -69,6 +115,62 @@ export default async function NuevaCotizacionPage() {
           Llena los datos generales, eventos, adicionales y ajustes.
         </p>
       </div>
+
+      {/* Banner contextual */}
+      {leadInfo ? (
+        <div className="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3">
+          <Target size={20} className="text-emerald-700 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <div className="text-xs uppercase tracking-wider text-emerald-800 font-semibold mb-1">
+              Cotizando para Lead {leadInfo.id}
+            </div>
+            <div className="font-medium text-stone-900">{leadInfo.nombre}</div>
+            <div className="text-xs text-stone-600 mt-1">
+              {leadInfo.pax ? `${leadInfo.pax} pax · ` : ''}
+              {leadInfo.fecha_evento ? `${leadInfo.fecha_evento} · ` : ''}
+              {leadInfo.locacion || 'Sin locación definida'}
+            </div>
+            <Link
+              href={`/leads/${leadInfo.id}`}
+              className="text-xs text-emerald-700 hover:underline mt-2 inline-block"
+            >
+              ← Volver al lead
+            </Link>
+          </div>
+        </div>
+      ) : leadInvalido ? (
+        <div className="mb-6 bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-start gap-3">
+          <AlertTriangle size={20} className="text-rose-700 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <div className="text-xs uppercase tracking-wider text-rose-800 font-semibold mb-1">
+              Lead no encontrado
+            </div>
+            <p className="text-sm text-stone-700">
+              El lead <span className="font-mono">{leadIdSolicitado}</span> no existe.
+              Esta cotización se creará sin vincular a un lead.
+            </p>
+            <Link href="/leads" className="text-xs text-rose-700 hover:underline mt-2 inline-block">
+              ← Ir a leads
+            </Link>
+          </div>
+        </div>
+      ) : esAprobador ? (
+        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+          <AlertTriangle size={20} className="text-amber-700 mt-0.5 flex-shrink-0" />
+          <div className="flex-1">
+            <div className="text-xs uppercase tracking-wider text-amber-800 font-semibold mb-1">
+              Cotización sin lead vinculado
+            </div>
+            <p className="text-sm text-stone-700">
+              Esta cotización no proviene de un lead. Considera capturar primero el lead
+              para mantener el flujo de ventas ordenado.
+            </p>
+            <Link href="/leads" className="text-xs text-amber-700 hover:underline mt-2 inline-block">
+              Ir a leads →
+            </Link>
+          </div>
+        </div>
+      ) : null}
 
       <WizardCotizacionForm
         usuario={profile!}
