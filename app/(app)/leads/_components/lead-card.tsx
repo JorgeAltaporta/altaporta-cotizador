@@ -1,13 +1,24 @@
 'use client'
 
 import Link from 'next/link'
-import { CANAL_LABELS, TIPO_EVENTO_LABELS, colorCanal, esLeadUrgente, formatearFechaEvento, telefonoNumerico, tiempoTranscurrido, type LeadConRelaciones } from '@/lib/types/leads'
-import { MessageSquare } from 'lucide-react'
+import {
+  CANAL_LABELS,
+  TIPO_EVENTO_LABELS,
+  colorCanal,
+  esLeadUrgente,
+  razonUrgencia,
+  formatearFechaEvento,
+  telefonoNumerico,
+  tiempoTranscurrido,
+  type LeadConRelaciones,
+} from '@/lib/types/leads'
+import { MessageSquare, AlertTriangle } from 'lucide-react'
 
 type Props = { lead: LeadConRelaciones }
 
 export default function LeadCard({ lead }: Props) {
   const urgente = esLeadUrgente(lead)
+  const razon = razonUrgencia(lead)
   const canalCol = colorCanal(lead.canal)
   const tel = telefonoNumerico(lead.telefono)
   const waUrl = `https://wa.me/52${tel}`
@@ -32,6 +43,14 @@ export default function LeadCard({ lead }: Props) {
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm text-stone-900 truncate">{lead.nombre}</div>
+
+          {urgente && razon ? (
+            <div className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 border border-rose-200 mt-1">
+              <AlertTriangle size={10} />
+              {razon}
+            </div>
+          ) : null}
+
           {lead.wp_nombre ? (
             <div className="text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded mt-1 inline-block font-medium">
               vía {lead.wp_nombre}
