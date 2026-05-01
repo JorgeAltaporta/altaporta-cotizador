@@ -8,6 +8,7 @@ import {
   buscarDuplicados,
   obtenerWPsParaCaptura,
   obtenerCargaEjecutivos,
+  crearWPRapido,
   type DatosLead,
   type LeadDuplicado,
   type ClienteExistente,
@@ -29,9 +30,12 @@ type Props = {
 
 type OrigenLead = 'directo' | 'wp'
 
+const VALOR_CREAR_WP = '__CREAR_NUEVO__'
+
 export default function CapturaModal({ abierto, onCerrar }: Props) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const [pendingWP, startTransitionWP] = useTransition()
 
   const [paso, setPaso] = useState<1 | 2 | 3>(1)
   const [origen, setOrigen] = useState<OrigenLead>('directo')
@@ -57,6 +61,17 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
   const [datosSobrecarga, setDatosSobrecarga] = useState<{ carga: number; umbral: number } | null>(null)
   const [cargas, setCargas] = useState<CargaEjecutivo[]>([])
 
+  // Mini-form de WP rápido
+  const [creandoWP, setCreandoWP] = useState(false)
+  const [errorWP, setErrorWP] = useState<string | null>(null)
+  const [nuevoWP, setNuevoWP] = useState({
+    nombre: '',
+    contacto: '',
+    telefono: '',
+    email: '',
+    comision: '10',
+  })
+
   useEffect(() => {
     if (abierto) {
       obtenerWPsParaCaptura().then(setWpsDisponibles)
@@ -66,9 +81,6 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
   useEffect(() => {
     if (!abierto || paso < 2) return
     const timer = setTimeout(() => {
-      // Para detección de duplicados, SOLO usamos los datos del cliente final.
-      // No usamos los del WP como fallback porque varios leads de la misma WP
-      // comparten su tel/email pero son eventos distintos (no son duplicados).
       buscarDuplicados({
         telefono: telefono || undefined,
         email: email || undefined,
@@ -102,6 +114,9 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
     setExitoMsg(null)
     setMostrarSobrecarga(false)
     setDatosSobrecarga(null)
+    setCreandoWP(false)
+    setErrorWP(null)
+    setNuevoWP({ nombre: '', contacto: '', telefono: '', email: '', comision: '10' })
   }
 
   function cerrarTodo() {
@@ -113,13 +128,63 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
     setOrigen(o)
     if (o === 'wp') setCanal('WP')
     else setCanal('WHATSAPP')
+    // Si cambia origen, cerrar mini-form WP
+    setCreandoWP(false)
+  }
+
+  function manejarCambioWP(valor: string) {
+    if (valor === VALOR_CREAR_WP) {
+      setCreandoWP(true)
+      setWpId('')
+      setErrorWP(null)
+    } else {
+      setCreandoWP(false)
+      setWpId(valor)
+    }
+  }
+
+  function cancelarCreacionWP() {
+    setCreandoWP(false)
+    setErrorWP(null)
+    setNuevoWP({ nombre: '', contacto: '', telefono: '', email: '', comision: '10' })
+  }
+
+  function guardarWPRapido() {
+    setErrorWP(null)
+
+    const comisionNum = parseFloat(nuevoWP.comision)
+    if (isNaN(comisionNum) || comisionNum < 0 || comisionNum > 50) {
+      setErrorWP('La comisión debe ser un número entre 0 y 50')
+      return
+    }
+
+    startTransitionWP(async () => {
+      const res = await crearWPRapido({
+        nombre: nuevoWP.nombre,
+        contacto: nuevoWP.contacto || undefined,
+        telefono: nuevoWP.telefono || undefined,
+        email: nuevoWP.email || undefined,
+        comision_default: comisionNum,
+      })
+
+      if (!res.ok || !res.wp) {
+        setErrorWP(res.error || 'Error al crear el WP')
+        return
+      }
+
+      // Agregar a la lista local y seleccionarlo
+      setWpsDisponibles((prev) => [...prev, res.wp!].sort((a, b) => a.nombre.localeCompare(b.nombre)))
+      setWpId(res.wp.id)
+      setCreandoWP(false)
+      setNuevoWP({ nombre: '', contacto: '', telefono: '', email: '', comision: '10' })
+    })
   }
 
   function avanzar() {
     setErrorMsg(null)
     if (paso === 1) {
       if (origen === 'wp' && !wpId) {
-        setErrorMsg('Selecciona el Wedding Planner que refiere')
+        setErrorMsg(creandoWP ? 'Termina de crear el WP o cancela' : 'Selecciona el Wedding Planner que refiere')
         return
       }
       setPaso(2)
@@ -130,8 +195,6 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
         setErrorMsg('El nombre es obligatorio para leads directos')
         return
       }
-      // Si origen=directo, el teléfono es obligatorio
-      // Si origen=WP, el teléfono es opcional (porque la WP es el contacto)
       if (origen === 'directo' && !telefono.trim()) {
         setErrorMsg('El teléfono es obligatorio')
         return
@@ -147,7 +210,6 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
   }
 
   function construirDatos(): DatosLead {
-    // Si origen=WP y tel/email del cliente están vacíos, usar los del WP como fallback
     const wpSeleccionado = origen === 'wp' && wpId ? wpsDisponibles.find((w) => w.id === wpId) : null
     const telFinal = telefono.trim() || (wpSeleccionado?.telefono ?? '') || ''
     const emailFinal = email.trim() || (wpSeleccionado?.email ?? '') || undefined
@@ -235,7 +297,23 @@ export default function CapturaModal({ abierto, onCerrar }: Props) {
 
           <div className="px-6 py-5 max-h-[60vh] overflow-y-auto">
             {paso === 1 ? (
-              <PasoOrigen origen={origen} setOrigen={seleccionarOrigen} canal={canal} setCanal={setCanal} wpId={wpId} setWpId={setWpId} wpsDisponibles={wpsDisponibles} disabled={pending} />
+              <PasoOrigen
+                origen={origen}
+                setOrigen={seleccionarOrigen}
+                canal={canal}
+                setCanal={setCanal}
+                wpId={wpId}
+                onCambioWP={manejarCambioWP}
+                wpsDisponibles={wpsDisponibles}
+                disabled={pending}
+                creandoWP={creandoWP}
+                nuevoWP={nuevoWP}
+                setNuevoWP={setNuevoWP}
+                errorWP={errorWP}
+                pendingWP={pendingWP}
+                onGuardarWP={guardarWPRapido}
+                onCancelarWP={cancelarCreacionWP}
+              />
             ) : null}
             {paso === 2 ? (
               <PasoCliente origen={origen} wpSeleccionado={wpSeleccionado} nombre={nombre} setNombre={setNombre} telefono={telefono} setTelefono={setTelefono} email={email} setEmail={setEmail} mensaje={mensaje} setMensaje={setMensaje} duplicadosLeads={duplicadosLeads} duplicadosClientes={duplicadosClientes} disabled={pending} />
@@ -327,12 +405,19 @@ type PropsPasoOrigen = {
   canal: CanalLead
   setCanal: (c: CanalLead) => void
   wpId: string
-  setWpId: (s: string) => void
+  onCambioWP: (valor: string) => void
   wpsDisponibles: WPParaCaptura[]
   disabled: boolean
+  creandoWP: boolean
+  nuevoWP: { nombre: string; contacto: string; telefono: string; email: string; comision: string }
+  setNuevoWP: (v: { nombre: string; contacto: string; telefono: string; email: string; comision: string }) => void
+  errorWP: string | null
+  pendingWP: boolean
+  onGuardarWP: () => void
+  onCancelarWP: () => void
 }
 
-function PasoOrigen({ origen, setOrigen, canal, setCanal, wpId, setWpId, wpsDisponibles, disabled }: PropsPasoOrigen) {
+function PasoOrigen({ origen, setOrigen, canal, setCanal, wpId, onCambioWP, wpsDisponibles, disabled, creandoWP, nuevoWP, setNuevoWP, errorWP, pendingWP, onGuardarWP, onCancelarWP }: PropsPasoOrigen) {
   return (
     <div className="space-y-5">
       <div>
@@ -361,14 +446,134 @@ function PasoOrigen({ origen, setOrigen, canal, setCanal, wpId, setWpId, wpsDisp
       {origen === 'wp' ? (
         <div>
           <label className="block text-xs uppercase tracking-wider text-stone-500 font-semibold mb-2">¿Qué Wedding Planner refiere? *</label>
-          <select value={wpId} onChange={(e) => setWpId(e.target.value)} disabled={disabled} className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm">
+          <select
+            value={creandoWP ? VALOR_CREAR_WP : wpId}
+            onChange={(e) => onCambioWP(e.target.value)}
+            disabled={disabled || pendingWP}
+            className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm"
+          >
             <option value="">-- Selecciona --</option>
             {wpsDisponibles.map((w) => (
               <option key={w.id} value={w.id}>{w.nombre}{w.verificado ? '' : ' (sin verificar)'}</option>
             ))}
+            <option value={VALOR_CREAR_WP}>+ Crear nuevo WP...</option>
           </select>
-          {wpsDisponibles.length === 0 ? (
-            <p className="text-xs text-stone-500 mt-2 italic">No hay WPs registrados todavía. La creación rápida estará en una próxima fase.</p>
+
+          {creandoWP ? (
+            <div className="mt-3 bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <div className="text-xs uppercase tracking-wider text-purple-800 font-semibold mb-3">
+                Nuevo Wedding Planner
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[11px] uppercase tracking-wider text-stone-500 font-semibold mb-1">
+                    Nombre del WP *
+                  </label>
+                  <input
+                    type="text"
+                    value={nuevoWP.nombre}
+                    onChange={(e) => setNuevoWP({ ...nuevoWP, nombre: e.target.value })}
+                    placeholder="Ej: Bodas Mérida, FH Weddings..."
+                    disabled={pendingWP}
+                    className="w-full px-3 py-1.5 border border-stone-300 rounded text-sm"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-wider text-stone-500 font-semibold mb-1">
+                      Contacto
+                    </label>
+                    <input
+                      type="text"
+                      value={nuevoWP.contacto}
+                      onChange={(e) => setNuevoWP({ ...nuevoWP, contacto: e.target.value })}
+                      placeholder="Persona de contacto"
+                      disabled={pendingWP}
+                      className="w-full px-3 py-1.5 border border-stone-300 rounded text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-wider text-stone-500 font-semibold mb-1">
+                      Comisión %
+                    </label>
+                    <input
+                      type="number"
+                      value={nuevoWP.comision}
+                      onChange={(e) => setNuevoWP({ ...nuevoWP, comision: e.target.value })}
+                      min="0"
+                      max="50"
+                      step="0.5"
+                      disabled={pendingWP}
+                      className="w-full px-3 py-1.5 border border-stone-300 rounded text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-wider text-stone-500 font-semibold mb-1">
+                      Teléfono
+                    </label>
+                    <input
+                      type="tel"
+                      value={nuevoWP.telefono}
+                      onChange={(e) => setNuevoWP({ ...nuevoWP, telefono: e.target.value })}
+                      placeholder="999 123 4567"
+                      disabled={pendingWP}
+                      className="w-full px-3 py-1.5 border border-stone-300 rounded text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-wider text-stone-500 font-semibold mb-1">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={nuevoWP.email}
+                      onChange={(e) => setNuevoWP({ ...nuevoWP, email: e.target.value })}
+                      placeholder="contacto@wp.com"
+                      disabled={pendingWP}
+                      className="w-full px-3 py-1.5 border border-stone-300 rounded text-sm"
+                    />
+                  </div>
+                </div>
+
+                {errorWP ? (
+                  <div className="text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded p-2">
+                    {errorWP}
+                  </div>
+                ) : null}
+
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={onCancelarWP}
+                    disabled={pendingWP}
+                    className="flex-1 px-3 py-1.5 text-xs border border-stone-300 hover:bg-stone-100 rounded transition disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onGuardarWP}
+                    disabled={pendingWP || !nuevoWP.nombre.trim()}
+                    className="flex-1 px-3 py-1.5 text-xs bg-purple-700 hover:bg-purple-800 text-white font-medium rounded transition disabled:opacity-50"
+                  >
+                    {pendingWP ? 'Guardando...' : 'Guardar WP'}
+                  </button>
+                </div>
+
+                <p className="text-[10px] text-purple-700 italic">
+                  El WP se creará como &ldquo;sin verificar&rdquo;. Jorge o Danna lo verificarán después en /wps.
+                </p>
+              </div>
+            </div>
+          ) : null}
+
+          {wpsDisponibles.length === 0 && !creandoWP ? (
+            <p className="text-xs text-stone-500 mt-2 italic">No hay WPs registrados todavía. Selecciona &ldquo;+ Crear nuevo WP...&rdquo; para empezar.</p>
           ) : null}
         </div>
       ) : null}
@@ -410,7 +615,6 @@ function PasoCliente({ origen, wpSeleccionado, nombre, setNombre, telefono, setT
 
   return (
     <div className="space-y-4">
-      {/* Mostrar info del WP arriba si origen=WP */}
       {origen === 'wp' && wpSeleccionado ? (
         <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
           <div className="text-xs uppercase tracking-wider text-purple-800 font-semibold mb-2">
