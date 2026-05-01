@@ -53,6 +53,27 @@ export type LeadDuplicado = {
   razon: string
 }
 
+export type ClienteExistente = {
+  id: string
+  nombre: string
+  telefono: string
+  email: string | null
+  razon: string
+}
+
+export type ResultadoBusquedaDuplicados = {
+  leads: LeadDuplicado[]
+  clientes: ClienteExistente[]
+}
+
+export type DatosNombreAuto = {
+  pax?: number
+  fecha_evento?: string
+  locacion?: string
+  tipo_evento?: TipoEvento
+  wp_nombre?: string
+}
+
 export type WPParaCaptura = {
   id: string
   nombre: string
@@ -69,7 +90,7 @@ export type CargaEjecutivo = {
 const ESTADOS_ACTIVOS: EstadoLead[] = ['NUEVO', 'COTIZADO', 'SEGUIMIENTO', 'NEGOCIACION']
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HELPERS INTERNOS (no exportados)
+// HELPERS INTERNOS
 // ─────────────────────────────────────────────────────────────────────────────
 
 async function generarSiguienteId(): Promise<string> {
@@ -133,6 +154,56 @@ async function determinarEjecutivo(
   return { ejecutivoId: capturador.id, metodo: 'self' }
 }
 
+/**
+ * Genera un nombre legible para leads de WP que vienen sin nombres reales.
+ * Ej: "Boda 200pax · 15-jun-2026 · Sotuta de Peón (vía Carolina)"
+ */
+function autogenerarNombreLead(datos: DatosNombreAuto): string {
+  const partes: string[] = []
+
+  // Tipo de evento + pax
+  if (datos.tipo_evento && datos.pax) {
+    const tipoMap: Record<TipoEvento, string> = {
+      BODA: 'Boda',
+      CORPORATIVO: 'Evento corporativo',
+      SOCIAL: 'Evento social',
+      OTRO: 'Evento',
+    }
+    partes.push(`${tipoMap[datos.tipo_evento]} ${datos.pax}pax`)
+  } else if (datos.pax) {
+    partes.push(`Evento ${datos.pax}pax`)
+  } else if (datos.tipo_evento) {
+    const tipoMap: Record<TipoEvento, string> = {
+      BODA: 'Boda',
+      CORPORATIVO: 'Evento corporativo',
+      SOCIAL: 'Evento social',
+      OTRO: 'Evento',
+    }
+    partes.push(tipoMap[datos.tipo_evento])
+  }
+
+  // Fecha
+  if (datos.fecha_evento) {
+    const [y, m, d] = datos.fecha_evento.split('-')
+    const meses = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+    partes.push(`${parseInt(d)}-${meses[parseInt(m) - 1]}-${y}`)
+  }
+
+  // Locación (cortada si es muy larga)
+  if (datos.locacion) {
+    const loc = datos.locacion.length > 30 ? datos.locacion.slice(0, 30) + '...' : datos.locacion
+    partes.push(loc)
+  }
+
+  let resultado = partes.length > 0 ? partes.join(' · ') : 'Lead sin datos'
+
+  if (datos.wp_nombre) {
+    resultado += ` (vía ${datos.wp_nombre})`
+  }
+
+  return resultado
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // SERVER ACTIONS (exportadas)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -150,8 +221,26 @@ export async function crearLead(
     return { ok: false, error: 'No hay usuario autenticado' }
   }
 
-  if (!datos.nombre.trim()) {
-    return { ok: false, error: 'El nombre es obligatorio' }
+  // Si nombre está vacío y origen es WP, autogenerar
+  let nombreFinal = datos.nombre.trim()
+  if (!nombreFinal && datos.wp_id) {
+    const { data: wp } = await supabase
+      .from('wedding_planners')
+      .select('nombre')
+      .eq('id', datos.wp_id)
+      .maybeSingle()
+
+    nombreFinal = autogenerarNombreLead({
+      pax: datos.pax,
+      fecha_evento: datos.fecha_evento,
+      locacion: datos.locacion,
+      tipo_evento: datos.tipo_evento,
+      wp_nombre: wp?.nombre,
+    })
+  }
+
+  if (!nombreFinal) {
+    return { ok: false, error: 'El nombre es obligatorio (o algún dato del evento si es vía WP)' }
   }
   if (!datos.telefono.trim()) {
     return { ok: false, error: 'El teléfono es obligatorio' }
@@ -198,7 +287,7 @@ export async function crearLead(
   const { error: errInsert } = await supabase.from('leads').insert({
     id,
     canal: datos.canal,
-    nombre: datos.nombre.trim(),
+    nombre: nombreFinal,
     telefono: datos.telefono.trim(),
     email: datos.email?.trim() || null,
     mensaje_inicial: datos.mensaje_inicial?.trim() || null,
@@ -244,10 +333,12 @@ export async function crearLead(
   }
 }
 
-export async function buscarDuplicados(criterios: CriteriosDuplicados): Promise<LeadDuplicado[]> {
+export async function buscarDuplicados(criterios: CriteriosDuplicados): Promise<ResultadoBusquedaDuplicados> {
   const supabase = await createClient()
-  const duplicados = new Map<string, LeadDuplicado>()
+  const leadsDup = new Map<string, LeadDuplicado>()
+  const clientesDup = new Map<string, ClienteExistente>()
 
+  // ─── BÚSQUEDA EN LEADS ACTIVOS ───
   if (criterios.telefono) {
     const telLimpio = criterios.telefono.replace(/[^0-9]/g, '')
     if (telLimpio.length >= 7) {
@@ -261,7 +352,7 @@ export async function buscarDuplicados(criterios: CriteriosDuplicados): Promise<
       )
 
       for (const c of candidatos) {
-        duplicados.set(c.id, {
+        leadsDup.set(c.id, {
           id: c.id,
           nombre: c.nombre,
           estado: c.estado as EstadoLead,
@@ -279,8 +370,8 @@ export async function buscarDuplicados(criterios: CriteriosDuplicados): Promise<
       .eq('email', criterios.email.trim().toLowerCase())
 
     for (const c of data || []) {
-      if (!duplicados.has(c.id)) {
-        duplicados.set(c.id, {
+      if (!leadsDup.has(c.id)) {
+        leadsDup.set(c.id, {
           id: c.id,
           nombre: c.nombre,
           estado: c.estado as EstadoLead,
@@ -303,8 +394,8 @@ export async function buscarDuplicados(criterios: CriteriosDuplicados): Promise<
     )
 
     for (const c of candidatos) {
-      if (!duplicados.has(c.id)) {
-        duplicados.set(c.id, {
+      if (!leadsDup.has(c.id)) {
+        leadsDup.set(c.id, {
           id: c.id,
           nombre: c.nombre,
           estado: c.estado as EstadoLead,
@@ -327,8 +418,8 @@ export async function buscarDuplicados(criterios: CriteriosDuplicados): Promise<
     )
 
     for (const c of candidatos) {
-      if (!duplicados.has(c.id)) {
-        duplicados.set(c.id, {
+      if (!leadsDup.has(c.id)) {
+        leadsDup.set(c.id, {
           id: c.id,
           nombre: c.nombre,
           estado: c.estado as EstadoLead,
@@ -338,7 +429,55 @@ export async function buscarDuplicados(criterios: CriteriosDuplicados): Promise<
     }
   }
 
-  return Array.from(duplicados.values())
+  // ─── BÚSQUEDA EN CLIENTES EXISTENTES ───
+  if (criterios.telefono) {
+    const telLimpio = criterios.telefono.replace(/[^0-9]/g, '')
+    if (telLimpio.length >= 7) {
+      const { data } = await supabase
+        .from('clientes')
+        .select('id, nombre, telefono, email')
+        .eq('estado', 'ACTIVO')
+
+      const candidatos = (data || []).filter((c) =>
+        c.telefono.replace(/[^0-9]/g, '').includes(telLimpio.slice(-7))
+      )
+
+      for (const c of candidatos) {
+        clientesDup.set(c.id, {
+          id: c.id,
+          nombre: c.nombre,
+          telefono: c.telefono,
+          email: c.email,
+          razon: 'Mismo teléfono',
+        })
+      }
+    }
+  }
+
+  if (criterios.email && criterios.email.includes('@')) {
+    const { data } = await supabase
+      .from('clientes')
+      .select('id, nombre, telefono, email')
+      .eq('estado', 'ACTIVO')
+      .eq('email', criterios.email.trim().toLowerCase())
+
+    for (const c of data || []) {
+      if (!clientesDup.has(c.id)) {
+        clientesDup.set(c.id, {
+          id: c.id,
+          nombre: c.nombre,
+          telefono: c.telefono,
+          email: c.email,
+          razon: 'Mismo email',
+        })
+      }
+    }
+  }
+
+  return {
+    leads: Array.from(leadsDup.values()),
+    clientes: Array.from(clientesDup.values()),
+  }
 }
 
 export async function obtenerWPsParaCaptura(): Promise<WPParaCaptura[]> {
