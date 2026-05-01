@@ -59,6 +59,8 @@ export type LeadOrigen = {
   fecha_evento: string | null
   locacion: string | null
   wp_id: string | null
+  ejecutivo_id: string | null
+  ejecutivo_nombre: string | null
 }
 
 const COMISION_EJECUTIVO_DEFAULT: Record<string, number> = {}
@@ -105,7 +107,7 @@ export default function WizardCotizacionForm({
     clienteNombre: leadOrigen?.nombre ?? '',
     wpId: leadOrigen?.wp_id ?? 'WP-DIRECTO',
     comisionOverride: null,
-    ejecutivoId: usuario.rol === 'EJECUTIVO' ? usuario.id : '',
+    ejecutivoId: leadOrigen?.ejecutivo_id ?? (usuario.rol === 'EJECUTIVO' ? usuario.id : ''),
     notasInternas: leadOrigen ? `Generada desde Lead ${leadOrigen.id}` : '',
     eventos: [eventoInicial],
   })
@@ -505,6 +507,11 @@ export default function WizardCotizacionForm({
               rangos={rangos}
               weddingPlanners={weddingPlanners}
               ejecutivos={ejecutivos}
+              ejecutivoHeredado={
+                leadOrigen?.ejecutivo_nombre
+                  ? { id: leadOrigen.ejecutivo_id ?? '', nombre: leadOrigen.ejecutivo_nombre }
+                  : null
+              }
             />
           )}
 
