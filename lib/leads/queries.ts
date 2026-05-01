@@ -59,8 +59,8 @@ const SELECT_LEAD_CON_RELACIONES = `
   razon_perdida, razon_perdida_detalle, cliente_id,
   creado_por, fecha_creacion, fecha_actualizacion,
   fecha_primer_contacto, fecha_cierre,
-  ejecutivo:profiles!ejecutivo_id ( nombre, color ),
-  wp:wedding_planners!wp_id ( nombre, verificado ),
+  ejecutivo:profiles!leads_ejecutivo_id_fkey ( nombre, color ),
+  wp:wedding_planners!leads_wp_id_fkey ( nombre, verificado ),
   notas:leads_notas ( count )
 `
 
