@@ -90,7 +90,6 @@ export function eventoVacio(idAmigable: string = 'EV-001'): EventoForm {
   }
 }
 
-// Genera el siguiente ID amigable basado en los IDs ya usados
 export function siguienteIdAmigable(eventos: EventoForm[]): string {
   const numerosUsados = eventos
     .map((e) => {
@@ -111,6 +110,11 @@ export type Step1Data = {
   eventos: EventoForm[]
 }
 
+export type EjecutivoHeredado = {
+  id: string
+  nombre: string
+}
+
 export default function Step1Datos({
   data,
   onChange,
@@ -120,6 +124,7 @@ export default function Step1Datos({
   rangos,
   weddingPlanners,
   ejecutivos,
+  ejecutivoHeredado,
 }: {
   data: Step1Data
   onChange: (cambios: Partial<Step1Data>) => void
@@ -129,6 +134,7 @@ export default function Step1Datos({
   rangos: Rango[]
   weddingPlanners: WeddingPlanner[]
   ejecutivos: Usuario[]
+  ejecutivoHeredado?: EjecutivoHeredado | null
 }) {
   function actualizarEvento(idx: number, cambios: Partial<EventoForm>) {
     onChange({
@@ -249,7 +255,12 @@ export default function Step1Datos({
             <label className="block text-sm text-stone-700 mb-1.5">
               Ejecutivo asignado <span className="text-stone-400 text-xs">(opcional)</span>
             </label>
-            {usuario.rol === 'EJECUTIVO' ? (
+            {ejecutivoHeredado ? (
+              <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-sm text-stone-700">
+                {ejecutivoHeredado.nombre}{' '}
+                <span className="text-xs text-emerald-700">(heredado del lead)</span>
+              </div>
+            ) : usuario.rol === 'EJECUTIVO' ? (
               <div className="px-3 py-2 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-700">
                 {usuario.nombre}{' '}
                 <span className="text-xs text-stone-500">(asignado automáticamente)</span>
