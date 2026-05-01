@@ -1,12 +1,21 @@
 import Link from 'next/link'
 import { obtenerLeadsConRelaciones } from '@/lib/leads/queries'
+import { createClient } from '@/lib/supabase/server'
 import type { EstadoLead, LeadConRelaciones } from '@/lib/types/leads'
 import BotonCapturar from './_components/boton-capturar'
 import VistaLeads from './_components/vista-leads'
 
 export const dynamic = 'force-dynamic'
 
+export type StatEjecutivo = {
+  id: string
+  nombre: string
+  color: string | null
+  carga: number
+}
+
 export default async function LeadsPage() {
+  const supabase = await createClient()
   const leads = await obtenerLeadsConRelaciones()
 
   // Stats rápidas (sin importar la vista)
@@ -30,6 +39,23 @@ export default async function LeadsPage() {
     const horas = (Date.now() - new Date(l.fecha_creacion).getTime()) / (1000 * 60 * 60)
     return horas > 2
   }).length
+
+  // Stats por ejecutivo: carga = leads activos
+  const ESTADOS_ACTIVOS: EstadoLead[] = ['NUEVO', 'COTIZADO', 'SEGUIMIENTO', 'NEGOCIACION']
+  const { data: ejecutivos } = await supabase
+    .from('profiles')
+    .select('id, nombre, color, rol')
+    .eq('rol', 'EJECUTIVO')
+    .order('nombre')
+
+  const statsEjecutivos: StatEjecutivo[] = (ejecutivos || []).map((e) => ({
+    id: e.id,
+    nombre: e.nombre,
+    color: e.color ?? null,
+    carga: leads.filter(
+      (l) => l.ejecutivo_id === e.id && ESTADOS_ACTIVOS.includes(l.estado)
+    ).length,
+  }))
 
   return (
     <div className="p-12 max-w-[1600px]">
@@ -65,8 +91,8 @@ export default async function LeadsPage() {
         </div>
       )}
 
-      {/* Vista (Kanban o Lista) */}
-      <VistaLeads leads={leads} />
+      {/* Vista (Kanban o Lista) con stats por ejecutivo */}
+      <VistaLeads leads={leads} statsEjecutivos={statsEjecutivos} />
 
       {/* Footer informativo */}
       <div className="mt-8 text-xs text-stone-500">
