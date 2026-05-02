@@ -1,6 +1,16 @@
 import Link from 'next/link'
+import { createClient } from '@/lib/supabase/server'
 
-const TARJETAS = [
+type Tarjeta = {
+  href: string
+  titulo: string
+  descripcion: string
+  icono: string
+  color: string
+  soloAprobador?: boolean
+}
+
+const TARJETAS: Tarjeta[] = [
   {
     href: '/catalogo/paquetes',
     titulo: 'Paquetes',
@@ -43,6 +53,14 @@ const TARJETAS = [
     icono: '📄',
     color: 'violet',
   },
+  {
+    href: '/configuracion/leads',
+    titulo: 'Configuración Leads',
+    descripcion: 'Umbrales, SLAs, razones de pérdida y verificación de WPs',
+    icono: '🎯',
+    color: 'amber',
+    soloAprobador: true,
+  },
 ]
 
 const COLORES: Record<string, { bg: string; border: string; hover: string }> = {
@@ -78,21 +96,43 @@ const COLORES: Record<string, { bg: string; border: string; hover: string }> = {
   },
 }
 
-export default function CatalogoPage() {
+export const dynamic = 'force-dynamic'
+
+export default async function CatalogoPage() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  let puedeAprobar = false
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('puede_aprobar')
+      .eq('id', user.id)
+      .maybeSingle()
+    puedeAprobar = !!profile?.puede_aprobar
+  }
+
+  // Filtrar tarjetas según permisos
+  const tarjetasVisibles = TARJETAS.filter(
+    (t) => !t.soloAprobador || puedeAprobar
+  )
+
   return (
     <div className="p-12 max-w-5xl">
       <div className="mb-8">
         <div className="text-xs tracking-widest text-amber-700 uppercase mb-2">
-             Configuración
-           </div>
-           <h1 className="font-serif text-4xl text-stone-900">Configuración de servicios</h1>
+          Configuración
+        </div>
+        <h1 className="font-serif text-4xl text-stone-900">Configuración</h1>
         <p className="text-stone-600 mt-2">
-          Configura paquetes, proteínas, zonas, adicionales y términos.
+          Configura servicios, paquetes, zonas y reglas operativas del sistema.
         </p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {TARJETAS.map((t) => {
+        {tarjetasVisibles.map((t) => {
           const c = COLORES[t.color] || COLORES.stone
           return (
             <Link
