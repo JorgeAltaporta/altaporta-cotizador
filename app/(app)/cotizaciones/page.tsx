@@ -26,7 +26,7 @@ export default async function CotizacionesPage() {
   } = await supabase.auth.getUser()
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, nombre')
+    .select('id, nombre, puede_aprobar')
     .eq('id', user!.id)
     .single()
 
@@ -133,7 +133,7 @@ export default async function CotizacionesPage() {
                           cotizacionId={c.id}
                           estadoActual={c.estado}
                           historialActual={c.historial}
-                          usuario={{ id: profile.id, nombre: profile.nombre }}
+                          usuario={{ id: profile.id, nombre: profile.nombre, puede_aprobar: profile.puede_aprobar }}
                           size="small"
                         />
                       )}
