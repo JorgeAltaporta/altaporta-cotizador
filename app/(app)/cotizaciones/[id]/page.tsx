@@ -84,13 +84,13 @@ export default async function CotizacionDetallePage({
   const { id } = await params
   const supabase = await createClient()
 
-  // Usuario actual (para registrar cambios de estado en historial)
+  // Usuario actual (para registrar cambios de estado en historial y validar permisos)
   const {
     data: { user },
   } = await supabase.auth.getUser()
   const { data: profileActual } = await supabase
     .from('profiles')
-    .select('id, nombre')
+    .select('id, nombre, puede_aprobar')
     .eq('id', user!.id)
     .single()
 
@@ -107,8 +107,6 @@ export default async function CotizacionDetallePage({
   const c = cotizacion as Cotizacion
 
   // ── Snapshot vs catálogo actual ───────────────────────────────────────────
-  // Si la cotización tiene snapshot (creada con Fase G+), leemos de ahí.
-  // Si no, fallback al catálogo y banner de advertencia (cotización legacy).
   const snapshot: CotizacionSnapshot | null = tieneSnapshot(c.snapshot)
     ? c.snapshot
     : null
@@ -238,7 +236,7 @@ export default async function CotizacionDetallePage({
                 cotizacionId={c.id}
                 estadoActual={c.estado}
                 historialActual={c.historial}
-                usuario={{ id: profileActual.id, nombre: profileActual.nombre }}
+                usuario={{ id: profileActual.id, nombre: profileActual.nombre, puede_aprobar: profileActual.puede_aprobar }}
                 size="small"
               />
             )}
