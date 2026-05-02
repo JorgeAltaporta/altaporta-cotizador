@@ -343,15 +343,19 @@ export async function buscarDuplicados(criterios: CriteriosDuplicados): Promise<
   // ─── BÚSQUEDA EN LEADS ACTIVOS ───
   if (criterios.telefono) {
     const telLimpio = criterios.telefono.replace(/[^0-9]/g, '')
-    if (telLimpio.length >= 7) {
+    // Solo buscamos si tenemos al menos 10 dígitos (número mexicano completo)
+    if (telLimpio.length >= 10) {
+      const ultimos10 = telLimpio.slice(-10)
       const { data } = await supabase
         .from('leads')
         .select('id, nombre, estado, telefono')
         .in('estado', ESTADOS_ACTIVOS)
 
-      const candidatos = (data || []).filter((l) =>
-        l.telefono.replace(/[^0-9]/g, '').includes(telLimpio.slice(-7))
-      )
+      // Comparación exacta de los últimos 10 dígitos (no substring)
+      const candidatos = (data || []).filter((l) => {
+        const telLeadLimpio = l.telefono.replace(/[^0-9]/g, '')
+        return telLeadLimpio.slice(-10) === ultimos10
+      })
 
       for (const c of candidatos) {
         leadsDup.set(c.id, {
@@ -434,15 +438,17 @@ export async function buscarDuplicados(criterios: CriteriosDuplicados): Promise<
   // ─── BÚSQUEDA EN CLIENTES EXISTENTES ───
   if (criterios.telefono) {
     const telLimpio = criterios.telefono.replace(/[^0-9]/g, '')
-    if (telLimpio.length >= 7) {
+    if (telLimpio.length >= 10) {
+      const ultimos10 = telLimpio.slice(-10)
       const { data } = await supabase
         .from('clientes')
         .select('id, nombre, telefono, email')
         .eq('estado', 'ACTIVO')
 
-      const candidatos = (data || []).filter((c) =>
-        c.telefono.replace(/[^0-9]/g, '').includes(telLimpio.slice(-7))
-      )
+      const candidatos = (data || []).filter((c) => {
+        const telCliLimpio = c.telefono.replace(/[^0-9]/g, '')
+        return telCliLimpio.slice(-10) === ultimos10
+      })
 
       for (const c of candidatos) {
         clientesDup.set(c.id, {
